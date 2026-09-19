@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { login, register, githubLogin } from '../services/authService';
 import { Page } from '../types';
 
@@ -13,7 +14,7 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
   const [username, setUsername] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
     if (email && password) {

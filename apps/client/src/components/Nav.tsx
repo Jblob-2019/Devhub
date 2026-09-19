@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Page } from '../types';
 import { Avatar, DevSearch } from './DevComponents';
@@ -13,6 +14,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
   const [searchVal, setSearchVal] = useState('');
 
   const { user, loading, logout } = useAuth();
+  const navItems = [
     { label: 'Discover', page: 'home' },
     { label: 'Explore', page: 'explore' },
     { label: 'Dashboard', page: 'dashboard' },
@@ -29,7 +31,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
       >
         <div className="flex items-center justify-between px-4 h-12">
           <button
-            onClick={() => onNav('home')}
+            onClick={() => onNav('home' as Page)}
             className="flex items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
           >
             <div className="w-6 h-6 rounded-md bg-[#238636] flex items-center justify-center text-white font-bold text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
@@ -39,7 +41,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
           </button>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => onNav('explore')}
+              onClick={() => onNav('explore' as Page)}
               className="p-1.5 rounded-md text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
               aria-label="Search"
             >
@@ -70,10 +72,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
             {navItems.map(item => (
               <button
                 key={item.page}
-                onClick={() => {
-                  onNav(item.page);
-                  setMenuOpen(false);
-                }}
+                onClick={() => onNav(item.page as Page)}
                 className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7] ${
                   current === item.page
                     ? 'font-semibold text-[#f0f6fc] bg-[#21262d] border-l-2 border-[#2f81f7]'
@@ -86,7 +85,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
             <div className="pt-2 pb-1 border-t border-[#30363d] flex gap-2">
               <button
                 onClick={() => {
-                  onNav('login');
+                  onNav('login' as Page);
                   setMenuOpen(false);
                 }}
                 className="dev-btn dev-btn-secondary flex-1 text-xs py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
@@ -95,7 +94,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
               </button>
               <button
                 onClick={() => {
-                  onNav('register');
+                  onNav('register' as Page);
                   setMenuOpen(false);
                 }}
                 className="dev-btn dev-btn-primary flex-1 text-xs py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
@@ -115,7 +114,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
       <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center gap-6">
         {/* Brand Logo */}
         <button
-          onClick={() => onNav('home')}
+          onClick={() => onNav('home' as Page)}
           className="flex items-center gap-2.5 flex-shrink-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
         >
           <div className="w-7 h-7 rounded-md bg-[#238636] border border-[#2ea043] flex items-center justify-center text-white font-mono font-bold text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]">
@@ -141,7 +140,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
           {navItems.map(item => (
             <button
               key={item.page}
-              onClick={() => onNav(item.page)}
+              onClick={() => onNav(item.page as Page)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7] ${
                 current === item.page
                   ? 'bg-[#21262d] text-[#f0f6fc] font-semibold border border-[#30363d]'
@@ -165,7 +164,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
               </button>
               <div className="h-4 w-px bg-[#30363d] mx-1" />
               <button
-                onClick={() => onNav('profile')}
+                onClick={() => onNav('profile' as Page)}
                 className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
                 title="View Profile"
               >
@@ -175,20 +174,20 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
           ) : (
             <>
               <button
-                onClick={() => onNav('login')}
+                onClick={() => onNav('login' as Page)}
                 className="dev-btn dev-btn-ghost text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
               >
                 Sign In
               </button>
               <button
-                onClick={() => onNav('register')}
+                onClick={() => onNav('register' as Page)}
                 className="dev-btn dev-btn-primary text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
               >
                 Sign Up
               </button>
               <div className="h-4 w-px bg-[#30363d] mx-1" />
               <button
-                onClick={() => onNav('profile')}
+                onClick={() => onNav('profile' as Page)}
                 className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
                 title="View Developer Profile (@torvalds)"
               >

@@ -16,6 +16,8 @@ import { useDevHubStore } from '../store/useDevHubStore';
 
 import { useAuth } from '../hooks/useAuth';
 
+import { LoginPage } from './Auth';
+
 export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
   const { user, loading } = useAuth();
   if (loading) {
