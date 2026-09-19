@@ -1,4 +1,4 @@
-import { Repository, Developer } from '../types.js';
+import { Repository, Developer } from '../types/index.js';
 
 export const FEATURED_REPO: Repository = {
   id: 'nextjs',
