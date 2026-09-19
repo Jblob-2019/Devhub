@@ -17,22 +17,20 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
     if (email && password) {
-      // Real auth – call backend and rely on HTTP‑only cookie
-      try {
-        if (mode === 'login') {
-          await login(email, password);
-        } else {
-          await register(username || email, email, password);
+        try {
+          if (mode === 'login') {
+            await login(email, password);
+          } else {
+            await register(username || email, email, password);
+          }
+          await refresh();
+          onNav('dashboard');
+        } catch (err) {
+          console.error(err);
+          // In a real UI you'd show an error toast here
         }
-        onNav('dashboard');
-      } catch (err) {
-        console.error(err);
-        // In a real UI you'd show an error toast here
       }
-      onNav('dashboard');
-    }
   };
 
   return (
