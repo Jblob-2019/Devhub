@@ -14,6 +14,7 @@ export interface Repository {
   openIssues?: number | string;
   featured?: boolean;
   languages?: { name: string; pct: number; color?: string }[];
+  recentCommitsCount?: number;
 }
 
 export interface Developer {
@@ -29,4 +30,5 @@ export interface Developer {
   company?: string;
   blog?: string;
   joinedDate?: string;
+  contributionsPastYear?: number;
 }
