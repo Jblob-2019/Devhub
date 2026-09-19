@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { FEATURED_REPO, TRENDING_REPOSITORIES, TOP_DEVELOPERS, CATEGORIES } from '../services/data';
+import { FEATURED_REPO, TRENDING_REPOSITORIES, TOP_DEVELOPERS, CATEGORIES } from '../services/data.js';
 
 const router = Router();
 
