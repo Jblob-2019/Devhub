@@ -1,0 +1,14 @@
+{
+  "name": "my-app",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "",
+    "dev": "",
+    "lint": "",
+    "test": ""
+  }
+}

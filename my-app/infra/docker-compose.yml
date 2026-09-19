@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  client:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.client
+    ports:
+      - "3000:80"
+
+  server:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.server
+    ports:
+      - "5000:5000"
