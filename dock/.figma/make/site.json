@@ -1,0 +1,10 @@
+{
+  "description": "Access comprehensive GitHub analytics and discover repositories with a user-friendly interface designed for developers to enhance collaboration and insights.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
