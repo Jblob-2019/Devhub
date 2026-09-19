@@ -62,7 +62,7 @@ router.get('/me', async (req, res) => {
 // ---------- GitHub OAuth start ----------
 router.get('/github', (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
-  const redirectUri = `${process.env.FRONTEND_URL || ''}/auth/github/callback`;
+  const redirectUri = process.env.GITHUB_CALLBACK_URL;
   const state = Math.random().toString(36).substring(2, 15); // simple CSRF token; in prod store in cookie / session
   res.cookie('oauth_state', state, { httpOnly: true, secure: true, sameSite: 'lax' });
   const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
@@ -86,7 +86,7 @@ router.get('/github/callback', async (req, res) => {
       client_id: process.env.GITHUB_CLIENT_ID!,
       client_secret: process.env.GITHUB_CLIENT_SECRET!,
       code,
-      redirect_uri: `${process.env.FRONTEND_URL || ''}/auth/github/callback`,
+      redirect_uri: process.env.GITHUB_CALLBACK_URL,
       state,
     }),
   });
