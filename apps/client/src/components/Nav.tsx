@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { Page } from '../types';
 import { Avatar, DevSearch } from './DevComponents';
 
@@ -12,7 +12,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
 
-  const navItems: { label: string; page: Page; badge?: string }[] = [
+  const { user, loading, logout } = useAuth();
     { label: 'Discover', page: 'home' },
     { label: 'Explore', page: 'explore' },
     { label: 'Dashboard', page: 'dashboard' },
@@ -155,26 +155,47 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
 
         {/* Auth / Profile Actions */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <button
-            onClick={() => onNav('login')}
-            className="dev-btn dev-btn-ghost text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-          >
-            Sign In
-          </button>
-          <button
-            onClick={() => onNav('register')}
-            className="dev-btn dev-btn-primary text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-          >
-            Sign Up
-          </button>
-          <div className="h-4 w-px bg-[#30363d] mx-1" />
-          <button
-            onClick={() => onNav('profile')}
-            className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-            title="View Developer Profile (@torvalds)"
-          >
-            <Avatar name="Linus Torvalds" size={28} />
-          </button>
+          {user ? (
+            <>
+              <button
+                onClick={logout}
+                className="dev-btn dev-btn-ghost text-xs"
+              >
+                Sign Out
+              </button>
+              <div className="h-4 w-px bg-[#30363d] mx-1" />
+              <button
+                onClick={() => onNav('profile')}
+                className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                title="View Profile"
+              >
+                <Avatar name={user.name || 'User'} size={28} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => onNav('login')}
+                className="dev-btn dev-btn-ghost text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => onNav('register')}
+                className="dev-btn dev-btn-primary text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+              >
+                Sign Up
+              </button>
+              <div className="h-4 w-px bg-[#30363d] mx-1" />
+              <button
+                onClick={() => onNav('profile')}
+                className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                title="View Developer Profile (@torvalds)"
+              >
+                <Avatar name="Linus Torvalds" size={28} />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </nav>

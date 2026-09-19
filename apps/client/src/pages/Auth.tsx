@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { login, register, githubLogin } from '../services/authService';
 import { Page } from '../types';
 
 interface AuthProps {
@@ -17,8 +17,18 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
     e.preventDefault();
     setSubmitted(true);
     if (email && password) {
-      // Simple placeholder token – replace with real JWT after implementing auth backend
-      localStorage.setItem('authToken', 'dummy-token');
+      // Real auth – call backend and rely on HTTP‑only cookie
+      try {
+        if (mode === 'login') {
+          await login(email, password);
+        } else {
+          await register(username || email, email, password);
+        }
+        onNav('dashboard');
+      } catch (err) {
+        console.error(err);
+        // In a real UI you'd show an error toast here
+      }
       onNav('dashboard');
     }
   };
@@ -41,7 +51,7 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
 
         {/* GitHub OAuth Button */}
         <button
-          onClick={() => onNav('dashboard')}
+          onClick={githubLogin}
           className="dev-btn dev-btn-secondary w-full py-2.5 text-sm gap-2.5 mb-5 justify-center"
         >
           <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">

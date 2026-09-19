@@ -11,6 +11,8 @@ import {
   SidebarSection,
 } from '../components/DevComponents';
 import { useDevHubStore } from '../store/useDevHubStore';
+import { useAuth } from '../hooks/useAuth';
+import { LoginPage } from './Auth';
 
 const PINNED_REPOS = [
   { name: 'linux', desc: 'Linux kernel source tree and development mainline', stars: '166k', forks: '50.4k', lang: 'C' },
@@ -28,12 +30,14 @@ const RECENT_REPOS = [
   { name: 'test-tlpi', stars: '156', lang: 'C', updated: '2w ago', isPrivate: false },
 ];
 
-import { LoginPage } from './Auth';
+import { useAuth } from '../hooks/useAuth';
 
 export function DeveloperProfilePage({ onNav }: { onNav: (page: Page) => void }) {
-  // Simple auth guard – show login if not authenticated
-  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-  if (!token) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-[#8b949e]">Loading…</div>;
+  }
+  if (!user) {
     return <LoginPage onNav={onNav} />;
   }
 

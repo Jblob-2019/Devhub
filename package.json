@@ -17,6 +17,13 @@
     "render-start": "npm run start --workspace apps/server"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/jsonwebtoken": "^9.0.10",
     "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "jsonwebtoken": "^9.0.3"
   }
 }

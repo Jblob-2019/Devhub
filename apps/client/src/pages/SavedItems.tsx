@@ -14,12 +14,14 @@ import {
 import { TRENDING_REPOSITORIES, TOP_DEVELOPERS } from '../services/githubService';
 import { useDevHubStore } from '../store/useDevHubStore';
 
-import { LoginPage } from './Auth';
+import { useAuth } from '../hooks/useAuth';
 
 export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
-  // Simple auth guard – show login if not authenticated
-  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-  if (!token) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-[#8b949e]">Loading…</div>;
+  }
+  if (!user) {
     return <LoginPage onNav={onNav} />;
   }
 
