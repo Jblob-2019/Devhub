@@ -41,10 +41,10 @@ export function useDevHub() {
     const fetchData = async () => {
       try {
         const [featRes, reposRes, devsRes, catsRes] = await Promise.all([
-          fetch('/api/featured-repo'),
-          fetch('/api/trending-repositories'),
-          fetch('/api/top-developers'),
-          fetch('/api/categories'),
+          fetch(`${import.meta.env.VITE_API_URL}/api/featured-repo`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/trending-repositories`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/top-developers`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/categories`),
         ]);
         if (featRes.ok) setFeaturedRepo(await featRes.json());
         if (reposRes.ok) setRepositories(await reposRes.json());
