@@ -69,7 +69,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
         </div>
         {menuOpen && (
           <div className="border-t border-[#30363d] bg-[#161b22] px-3 py-2 space-y-1">
-            {navItems.map(item => (
+            {navItems.filter(item => user ? true : (item.page !== 'dashboard' && item.page !== 'saved')).map(item => (
               <button
                 key={item.page}
                 onClick={() => onNav(item.page as Page)}
@@ -82,26 +82,28 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
                 {item.label}
               </button>
             ))}
-            <div className="pt-2 pb-1 border-t border-[#30363d] flex gap-2">
-              <button
-                onClick={() => {
-                  onNav('login' as Page);
-                  setMenuOpen(false);
-                }}
-                className="dev-btn dev-btn-secondary flex-1 text-xs py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => {
-                  onNav('register' as Page);
-                  setMenuOpen(false);
-                }}
-                className="dev-btn dev-btn-primary flex-1 text-xs py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-              >
-                Sign Up
-              </button>
-            </div>
+            {!user && (
+              <div className="pt-2 pb-1 border-t border-[#30363d] flex gap-2">
+                <button
+                  onClick={() => {
+                    onNav('login' as Page);
+                    setMenuOpen(false);
+                  }}
+                  className="dev-btn dev-btn-secondary flex-1 text-xs py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => {
+                    onNav('register' as Page);
+                    setMenuOpen(false);
+                  }}
+                  className="dev-btn dev-btn-primary flex-1 text-xs py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
           </div>
         )}
       </nav>
@@ -137,7 +139,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
 
         {/* Navigation Items */}
         <div className="flex items-center gap-1 flex-1" role="menubar" aria-label="Main navigation">
-          {navItems.map(item => (
+          {navItems.filter(item => user ? true : (item.page !== 'dashboard' && item.page !== 'saved')).map(item => (
             <button
               key={item.page}
               onClick={() => onNav(item.page as Page)}
@@ -162,8 +164,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
               >
                 Sign Out
               </button>
-              <div className="h-4 w-px bg-[#30363d] mx-1" />
-              <button
+                            <button
                 onClick={() => onNav('profile' as Page)}
                 className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
                 title="View Profile"
@@ -185,8 +186,7 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
               >
                 Sign Up
               </button>
-              <div className="h-4 w-px bg-[#30363d] mx-1" />
-              <button
+                            <button
                 onClick={() => onNav('profile' as Page)}
                 className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
                 title="View Developer Profile (@torvalds)"

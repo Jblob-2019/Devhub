@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { login, register, githubLogin } from '../services/authService';
+import { useAuth } from '../hooks/useAuth';
 import { Page } from '../types';
 
 interface AuthProps {
@@ -12,7 +13,7 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { refresh } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

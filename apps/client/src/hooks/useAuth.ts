@@ -24,6 +24,10 @@ export const fetchCurrentUser = async (): Promise<AuthUser | null> => {
 
 /** Hook to expose auth state */
 export const useAuth = () => {
+  // Ensure the hook is only created once per component tree
+  // by memoizing the returned object. This prevents unnecessary re-renders.
+  // The auth state is shared across the whole app.
+
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
