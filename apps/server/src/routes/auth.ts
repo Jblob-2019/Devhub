@@ -8,6 +8,10 @@ const GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL;
 if (!GITHUB_CALLBACK_URL) {
   throw new Error('GITHUB_CALLBACK_URL is not configured');
 }
+const FRONTEND_URL = process.env.FRONTEND_URL;
+if (!FRONTEND_URL) {
+  throw new Error('FRONTEND_URL is not configured');
+}
 
 
 // ---------- Email registration ----------
@@ -129,7 +133,7 @@ router.get('/github/callback', async (req, res) => {
   // Set session cookie and redirect back to frontend (or send JSON)
   res
     .cookie('session', jwtToken, { httpOnly: true, secure: true, sameSite: 'lax' })
-    .redirect(process.env.FRONTEND_URL || '/');
+          .redirect(`${FRONTEND_URL}/login`);
 });
 
 export default router;
