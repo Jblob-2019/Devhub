@@ -12,25 +12,31 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
+  const [name, setName] = useState(''); // registration name (or fallback)
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { refresh } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
-        try {
-          if (mode === 'login') {
-            await login(email, password);
-          } else {
-            await register(username || email, email, password);
-          }
-          await refresh();
-          onNav('dashboard');
-        } catch (err) {
-          console.error(err);
-          // In a real UI you'd show an error toast here
-        }
+    setError(null);
+    if (!email || !password) return;
+    setIsLoading(true);
+    try {
+      if (mode === 'login') {
+        await login(email, password);
+      } else {
+        // registration: use provided name or fallback to email as the display name
+        await register(name || email, email, password);
       }
+      await refresh();
+      onNav('dashboard');
+    } catch (err) {
+      console.error(err);
+      setError('Authentication failed. Please check your credentials and try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -76,14 +82,14 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
             {mode === 'register' && (
               <div>
                 <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">
-                  GitHub Username
+                  Full Name
                 </label>
                 <input
                   type="text"
                   className="dev-input"
-                  placeholder="e.g. torvalds"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
+                  placeholder="Your name"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
                   required
                 />
               </div>
@@ -126,11 +132,24 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
               />
             </div>
 
+            {error && (
+              <div className="text-red-500 text-sm mt-2" role="alert">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
               className="dev-btn dev-btn-primary w-full py-2 text-sm mt-2 font-semibold"
+              disabled={isLoading}
             >
-              {mode === 'login' ? 'Sign In' : 'Create Developer Account'}
+              {isLoading
+                ? mode === 'login'
+                  ? 'Signing in...'
+                  : 'Creating account...'
+                : mode === 'login'
+                ? 'Sign In'
+                : 'Create Developer Account'}
             </button>
           </form>
 
