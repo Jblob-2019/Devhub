@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AuthProvider } from './context/AuthContext';
 import { Page, FrameMode } from './types';
 import { Nav } from './components/Nav';
 import { HomePage } from './pages/Home';
@@ -31,7 +32,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b141c] text-[#f0f6fc] flex flex-col font-sans">
+          <AuthProvider>
+      <div className="min-h-screen bg-[#0b141c] text-[#f0f6fc] flex flex-col font-sans">
       {/* Viewport Content */}
       <main className="flex-1">
         {showMobile ? (
@@ -89,6 +91,7 @@ export default function App() {
         )}
       </main>
     </div>
+    </AuthProvider>
   );
 }
 
