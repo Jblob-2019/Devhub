@@ -165,12 +165,12 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
                 Sign Out
               </button>
                             <button
-                onClick={() => onNav('profile' as Page)}
-                className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-                title="View Profile"
-              >
-                <Avatar name={user.name || 'User'} size={28} />
-              </button>
+                  onClick={() => onNav('profile' as Page)}
+                  className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                  title="View Profile"
+                >
+                  <Avatar name={user.name || user.username || user.email} src={user.avatar_url} size={28} />
+                </button>
             </>
           ) : (
             <>
@@ -186,12 +186,10 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
               >
                 Sign Up
               </button>
-                            <button
-                onClick={() => onNav('profile' as Page)}
-                className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                                            className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
                 title="View Developer Profile (@torvalds)"
               >
-                <Avatar name="Linus Torvalds" size={28} />
+                                    <Avatar name={user.name || user.username || user.email} src={user.avatar_url} size={28} />
               </button>
             </>
           )}

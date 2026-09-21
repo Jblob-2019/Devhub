@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Repository, Developer, Page } from '../types';
+import { Repository, Developer } from '../types';
 
 export const CATEGORIES_DEFAULT = [
   'All',
@@ -36,26 +36,7 @@ export function useDevHub() {
   const [developers, setDevelopers] = useState<Developer[]>([]);
   const [categories, setCategories] = useState<string[]>(CATEGORIES_DEFAULT);
 
-  // Fetch data from backend API on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [featRes, reposRes, devsRes, catsRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/featured-repo`),
-          fetch(`${import.meta.env.VITE_API_URL}/api/trending-repositories`),
-          fetch(`${import.meta.env.VITE_API_URL}/api/top-developers`),
-          fetch(`${import.meta.env.VITE_API_URL}/api/categories`),
-        ]);
-        if (featRes.ok) setFeaturedRepo(await featRes.json());
-        if (reposRes.ok) setRepositories(await reposRes.json());
-        if (devsRes.ok) setDevelopers(await devsRes.json());
-        if (catsRes.ok) setCategories(await catsRes.json());
-      } catch (e) {
-        console.error('Failed to load DevHub data', e);
-      }
-    };
-    fetchData();
-  }, []);
+  // No longer fetch mock endpoints. The Explore page performs its own search.
 
   const filteredRepositories = useMemo(() => {
     return repositories.filter(repo => {
@@ -63,13 +44,11 @@ export function useDevHub() {
         selectedCategory === 'All' ||
         repo.language.toLowerCase() === selectedCategory.toLowerCase() ||
         repo.topics.some(t => t.toLowerCase() === selectedCategory.toLowerCase());
-
       const matchQuery =
         !searchQuery ||
         repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         repo.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         repo.topics.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-
       return matchCat && matchQuery;
     });
   }, [repositories, selectedCategory, searchQuery]);

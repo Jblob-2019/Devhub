@@ -7,69 +7,82 @@ export interface SavedState {
   recentlyViewed: { type: 'repo' | 'dev'; id: string; name: string; time: string }[];
 }
 
-const DEFAULT_SAVED_STATE: SavedState = {
-  savedRepos: ['vercel/next.js', 'microsoft/vscode', 'rust-lang/rust', 'denoland/deno'],
-  savedDevs: ['torvalds', 'yyx990803'],
-  followingDevs: ['torvalds'],
-  recentlyViewed: [
-    { type: 'repo', id: 'facebook/react', name: 'facebook/react', time: '10m ago' },
-    { type: 'dev', id: 'sindresorhus', name: 'sindresorhus', time: '25m ago' },
-    { type: 'repo', id: 'golang/go', name: 'golang/go', time: '1h ago' },
-    { type: 'repo', id: 'openai/whisper', name: 'openai/whisper', time: '2h ago' },
-    { type: 'dev', id: 'karpathy', name: 'karpathy', time: '3h ago' },
-  ]
+// Helper to fetch favorites from backend
+const fetchFavorites = async (): Promise<SavedState> => {
+  const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`, { credentials: 'include' });
+  if (!resp.ok) {
+    console.error('Failed to load favorites');
+    return { savedRepos: [], savedDevs: [], followingDevs: [], recentlyViewed: [] };
+  }
+  const data = await resp.json();
+  // Backend returns array of { id, type, target }
+  const savedRepos = data.filter((f:any) => f.type === 'repository').map((f:any) => f.target);
+  const savedDevs = data.filter((f:any) => f.type === 'developer').map((f:any) => f.target);
+  return { savedRepos, savedDevs, followingDevs: [], recentlyViewed: [] };
 };
 
 export function useDevHubStore() {
-  const [state, setState] = useState<SavedState>(() => {
-    try {
-      const stored = localStorage.getItem('devhub_state');
-      return stored ? JSON.parse(stored) : DEFAULT_SAVED_STATE;
-    } catch {
-      return DEFAULT_SAVED_STATE;
-    }
-  });
+  const [state, setState] = useState<SavedState>({ savedRepos: [], savedDevs: [], followingDevs: [], recentlyViewed: [] });
 
+  // Load favorites on mount
   useEffect(() => {
-    try {
-      localStorage.setItem('devhub_state', JSON.stringify(state));
-    } catch {
-      // Ignore local storage error
+    let cancelled = false;
+    fetchFavorites().then(favs => {
+      if (!cancelled) setState(prev => ({ ...prev, ...favs }));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggleSaveRepo = useCallback(async (repoName: string) => {
+    const exists = state.savedRepos.includes(repoName);
+    if (exists) {
+      // DELETE favorite
+      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/repository/${encodeURIComponent(repoName)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    } else {
+      // POST new favorite
+      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'repository', target: repoName }),
+      });
     }
-  }, [state]);
+    setState(prev => ({
+      ...prev,
+      savedRepos: exists ? prev.savedRepos.filter(r => r !== repoName) : [...prev.savedRepos, repoName],
+    }));
+  }, [state.savedRepos]);
 
-  const toggleSaveRepo = useCallback((repoName: string) => {
-    setState(prev => {
-      const exists = prev.savedRepos.includes(repoName);
-      return {
-        ...prev,
-        savedRepos: exists
-          ? prev.savedRepos.filter(r => r !== repoName)
-          : [...prev.savedRepos, repoName]
-      };
-    });
-  }, []);
-
-  const toggleSaveDev = useCallback((devHandle: string) => {
-    setState(prev => {
-      const exists = prev.savedDevs.includes(devHandle);
-      return {
-        ...prev,
-        savedDevs: exists
-          ? prev.savedDevs.filter(d => d !== devHandle)
-          : [...prev.savedDevs, devHandle]
-      };
-    });
-  }, []);
+  const toggleSaveDev = useCallback(async (devHandle: string) => {
+    const exists = state.savedDevs.includes(devHandle);
+    if (exists) {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/developer/${encodeURIComponent(devHandle)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+    } else {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'developer', target: devHandle }),
+      });
+    }
+    setState(prev => ({
+      ...prev,
+      savedDevs: exists ? prev.savedDevs.filter(d => d !== devHandle) : [...prev.savedDevs, devHandle],
+    }));
+  }, [state.savedDevs]);
 
   const toggleFollowDev = useCallback((devHandle: string) => {
     setState(prev => {
       const exists = prev.followingDevs.includes(devHandle);
       return {
         ...prev,
-        followingDevs: exists
-          ? prev.followingDevs.filter(d => d !== devHandle)
-          : [...prev.followingDevs, devHandle]
+        followingDevs: exists ? prev.followingDevs.filter(d => d !== devHandle) : [...prev.followingDevs, devHandle],
       };
     });
   }, []);
@@ -77,10 +90,7 @@ export function useDevHubStore() {
   const addRecent = useCallback((item: { type: 'repo' | 'dev'; id: string; name: string }) => {
     setState(prev => ({
       ...prev,
-      recentlyViewed: [
-        { ...item, time: 'Just now' },
-        ...prev.recentlyViewed.filter(r => r.id !== item.id)
-      ].slice(0, 10)
+      recentlyViewed: [{ ...item, time: 'Just now' }, ...prev.recentlyViewed.filter(r => r.id !== item.id)].slice(0, 10),
     }));
   }, []);
 

@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Page } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Page, Repository, Developer } from '../types';
+import { getRepository, getUser } from '../services/githubApi';
 import {
   Avatar,
   StarCount,
@@ -11,7 +12,8 @@ import {
   EmptyState,
   SidebarSection,
 } from '../components/DevComponents';
-import { TRENDING_REPOSITORIES, TOP_DEVELOPERS } from '../services/githubService';
+// Removed static mock imports – saved items now rely on backend favorites
+// import { TRENDING_REPOSITORIES, TOP_DEVELOPERS } from '../services/githubService';
 import { useDevHubStore } from '../store/useDevHubStore';
 
 import { useAuth } from '../hooks/useAuth';
@@ -41,15 +43,22 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
     addRecent,
   } = useDevHubStore();
 
-  const savedRepoList = useMemo(() => {
-    return TRENDING_REPOSITORIES.filter(r => savedRepos.includes(r.fullName))
-      .filter(r => !query || r.fullName.toLowerCase().includes(query.toLowerCase()) || r.description.toLowerCase().includes(query.toLowerCase()));
-  }, [savedRepos, query]);
+  // Load repo and developer details for saved items
+  useEffect(() => {
+    async function load() {
+      const repos = await Promise.all(savedRepos.map(fullName => {
+        const [owner, repo] = fullName.split('/');
+        return getRepository(owner, repo);
+      }));
+      setSavedRepoList(repos);
+      const devs = await Promise.all(savedDevs.map(username => getUser(username)));
+      setSavedDevList(devs);
+    }
+    load();
+  }, [savedRepos, savedDevs]);
 
-  const savedDevList = useMemo(() => {
-    return TOP_DEVELOPERS.filter(d => savedDevs.includes(d.username))
-      .filter(d => !query || d.name.toLowerCase().includes(query.toLowerCase()) || d.username.toLowerCase().includes(query.toLowerCase()));
-  }, [savedDevs, query]);
+  const [savedRepoList, setSavedRepoList] = useState<Repository[]>([]);
+  const [savedDevList, setSavedDevList] = useState<Developer[]>([]);
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
@@ -115,14 +124,14 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
                   <div
                     key={repo.id}
                     className="dev-card dev-card-interactive p-4 flex items-start gap-3.5 cursor-pointer"
-                    onClick={() => handleRepoClick(repo.fullName)}
+                    onClick={() => handleRepoClick(`${repo.owner?.login}/${repo.name}`)}
                   >
                     <Avatar name={repo.name} size={36} rounded={false} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <span className="font-semibold text-sm text-[#f0f6fc] hover:text-[#2f81f7] font-mono">
-                            {repo.fullName}
+                            {`${repo.owner?.login}/${repo.name}` }
                           </span>
                           <p className="text-xs text-[#8b949e] mt-1 mb-2">
                             {repo.description}
@@ -130,7 +139,7 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
                         </div>
                         <SaveButton
                           saved={true}
-                          onToggle={() => toggleSaveRepo(repo.fullName)}
+                          onToggle={() => toggleSaveRepo(`${repo.owner?.login}/${repo.name}`)}
                         />
                       </div>
                       <div className="flex items-center gap-4 flex-wrap">

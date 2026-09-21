@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Page } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Repository, Developer } from '../types';
 import {
   Avatar,
   StarCount,
@@ -12,16 +12,66 @@ import {
   SortBar,
   DevPagination,
 } from '../components/DevComponents';
-import { TRENDING_REPOSITORIES, TOP_DEVELOPERS } from '../services/githubService';
+import { searchRepositories, searchUsers } from '../services/githubApi';
 import { useDevHubStore } from '../store/useDevHubStore';
 
-export function ExplorePage({ onNav }: { onNav: (page: Page) => void }) {
+import { useNavigate } from 'react-router-dom';
+export function ExplorePage() {
+  const navigate = useNavigate();
+  const [repoResults, setRepoResults] = useState<Repository[]>([]);
+  const [devResults, setDevResults] = useState<Developer[]>([]);
+  useEffect(() => {
+    if (!query) {
+      // clear results when no query
+      setRepoResults([]);
+      setDevResults([]);
+      return;
+    }
+    const fetchData = async () => {
+      try {
+        const repos = await searchRepositories(query);
+        const devs = await searchUsers(query);
+        // Map GitHub repo shape to our Repository type
+        const mappedRepos = repos.map((r:any): Repository => ({
+          id: r.id?.toString() ?? '',
+          name: r.name,
+          owner: r.owner?.login ?? '',
+          fullName: r.full_name,
+          description: r.description ?? '',
+          stars: r.stargazers_count,
+          forks: r.forks_count,
+          watchers: r.watchers_count,
+          openIssues: r.open_issues_count,
+          language: r.language ?? 'Unknown',
+          topics: r.topics ?? [],
+          updatedAt: new Date(r.updated_at).toLocaleDateString(),
+          languages: [],
+        }));
+        // Map GitHub user shape to our Developer type
+        const mappedDevs = devs.map((u:any): Developer => ({
+          id: u.id?.toString() ?? '',
+          name: u.name ?? u.login,
+          username: u.login,
+          bio: u.bio ?? '',
+          avatarUrl: u.avatar_url,
+          reposCount: u.public_repos ?? 0,
+          followers: u.followers ?? 0,
+          following: u.following ?? 0,
+          primaryLanguage: u.language ?? 'Unknown',
+        }));
+        setRepoResults(mappedRepos);
+        setDevResults(mappedDevs);
+      } catch (e) {
+        console.error('Explore search error', e);
+      }
+    };
+    fetchData();
+  }, [query]);
   const [tab, setTab] = useState('Repositories');
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<Record<string, string>>({});
   const [sort, setSort] = useState('Stars');
   const [filterOpen, setFilterOpen] = useState(true);
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
 
   const {
     savedRepos,
@@ -47,7 +97,7 @@ export function ExplorePage({ onNav }: { onNav: (page: Page) => void }) {
   ];
 
   const filteredRepos = useMemo(() => {
-    return TRENDING_REPOSITORIES.filter(repo => {
+    return repoResults.filter(repo => {
       if (query) {
         const q = query.toLowerCase();
         const matchName = repo.fullName.toLowerCase().includes(q);
@@ -60,10 +110,10 @@ export function ExplorePage({ onNav }: { onNav: (page: Page) => void }) {
       }
       return true;
     });
-  }, [query, filters]);
+  }, [query, filters, repoResults]);
 
   const filteredDevs = useMemo(() => {
-    return TOP_DEVELOPERS.filter(dev => {
+    return devResults.filter(dev => {
       if (query) {
         const q = query.toLowerCase();
         const matchName = dev.name.toLowerCase().includes(q);
@@ -76,16 +126,16 @@ export function ExplorePage({ onNav }: { onNav: (page: Page) => void }) {
       }
       return true;
     });
-  }, [query, filters]);
+  }, [query, filters, devResults]);
 
   const handleSelectRepo = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('repo');
+    navigate('/repo');
   };
 
   const handleSelectDev = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    onNav('profile');
+    navigate('/profile');
   };
 
   return (

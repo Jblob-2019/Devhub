@@ -21,5 +21,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   }
   // @ts-ignore – augmenting request type
   req.user = user;
+  // @ts-ignore – expose userId for downstream handlers
+  req.userId = user.id;
   next();
 };

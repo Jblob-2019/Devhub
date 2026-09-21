@@ -3,7 +3,8 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import apiRouter from './routes/api.js';
+import githubRouter from './routes/github.js';
+import favoritesRouter from './routes/favorites.js';
 import authRouter from './routes/auth.js';
 import { parseCookies } from './middleware/auth.js';
 
@@ -11,17 +12,19 @@ const app = express();
 const PORT = parseInt(process.env.PORT ?? '4000', 10);
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: process.env.FRONTEND_URL,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(parseCookies); // parse cookies for auth & OAuth state
 app.use(express.json());
 
 // Public API routes (still accessible without auth)
-app.use('/api', apiRouter);
+app.use('/api/favorites', favoritesRouter);
 
 // Auth routes (register, login, logout, me, GitHub OAuth)
-app.use('/auth', authRouter);
+app.use('/api/github', githubRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

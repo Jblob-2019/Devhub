@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { Page } from '../types';
+import React, { useState, useEffect } from 'react';
 import {
   Avatar,
   VectorChart,
@@ -9,16 +8,40 @@ import {
   LanguageBar,
   SidebarSection,
 } from '../components/DevComponents';
-import { REPO_COMMITS, REPO_CONTRIBUTORS } from '../services/githubService';
+import { getFullRepository } from '../services/githubApi';
 import { useDevHubStore } from '../store/useDevHubStore';
 
-export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }) {
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
+export function RepositoryDetailsPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState('Overview');
   const [starred, setStarred] = useState(false);
   const [watched, setWatched] = useState(false);
-  const { savedRepos, toggleSaveRepo } = useDevHubStore();
+  const [searchParams] = useSearchParams();
+  const owner = searchParams.get('owner') ?? '';
+  const repo = searchParams.get('repo') ?? '';
+  const [repoData, setRepoData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const isSaved = savedRepos.includes('torvalds/linux');
+  useEffect(() => {
+    if (!owner || !repo) {
+      setError('Missing owner or repo in URL');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    getFullRepository(owner, repo)
+      .then(data => setRepoData(data))
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [owner, repo]);
+
+  if (loading) return <div className="flex items-center justify-center h-full text-[#8b949e]">Loading…</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
+  const { savedRepos, toggleSaveRepo } = useDevHubStore();
+  const isSaved = savedRepos.includes(`${owner}/${repo}`);
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
@@ -26,40 +49,40 @@ export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }
       <div className="dev-card p-5 mb-5 border border-[#30363d]">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3.5">
-            <Avatar name="linux" size={48} rounded={false} />
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => onNav('profile')}
-                  className="text-[#8b949e] hover:text-[#2f81f7] text-sm font-mono hover:underline"
-                >
-                  torvalds
-                </button>
-                <span className="text-[#414754]">/</span>
-                <span className="font-bold text-[#f0f6fc] text-xl font-mono">
-                  linux
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]">
-                  Public
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#238636]/15 text-[#3fb950] border border-[#238636]/40">
-                  main branch
-                </span>
-              </div>
-              <p className="text-sm text-[#8b949e] mt-1.5 leading-relaxed">
-                Linux kernel source tree and master distribution repository.
-              </p>
-              <div className="flex gap-1.5 flex-wrap mt-2.5">
-                {['kernel', 'linux', 'c', 'operating-system', 'systems'].map(topic => (
-                  <span
-                    key={topic}
-                    className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]"
+                          <Avatar name={repoData?.repo?.owner ?? ''} size={48} rounded={false} />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => navigate('/profile')}
+                    className="text-[#8b949e] hover:text-[#2f81f7] text-sm font-mono hover:underline"
                   >
-                    {topic}
+                    {repoData?.repo?.owner ?? ''}
+                  </button>
+                  <span className="text-[#414754]">/</span>
+                  <span className="font-bold text-[#f0f6fc] text-xl font-mono">
+                    {repoData?.repo?.name ?? ''}
                   </span>
-                ))}
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]">
+                    {repoData?.repo?.private ? 'Private' : 'Public'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#238636]/15 text-[#3fb950] border border-[#238636]/40">
+                    {repoData?.repo?.default_branch ?? ''} branch
+                  </span>
+                </div>
+                <p className="text-sm text-[#8b949e] mt-1.5 leading-relaxed">
+                  {repoData?.repo?.description ?? ''}
+                </p>
+                <div className="flex gap-1.5 flex-wrap mt-2.5">
+                  {repoData?.repo?.topics?.map((topic:string) => (
+                    <span
+                      key={topic}
+                      className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
           </div>
 
           {/* Action Buttons Toolbar */}
@@ -111,7 +134,7 @@ export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }
 
             <SaveButton
               saved={isSaved}
-              onToggle={() => toggleSaveRepo('torvalds/linux')}
+              onToggle={() => toggleSaveRepo(`${owner}/${repo}`)}
             />
           </div>
         </div>
@@ -119,11 +142,11 @@ export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }
 
       {/* 5-Metric Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <MetricCard label="Stars" value="166k" sublabel="↑ 2.3k / month" trend="up" />
-        <MetricCard label="Forks" value="50.4k" sublabel="active network" />
-        <MetricCard label="Open Issues" value="324" sublabel="1.2k total" />
-        <MetricCard label="Contributors" value="4,821" sublabel="all time" />
-        <MetricCard label="Commits" value="1.1M" sublabel="mainline" />
+        <MetricCard label="Stars" value={repoData?.repo?.stargazers_count?.toLocaleString() ?? '-'} sublabel="" />
+        <MetricCard label="Forks" value={repoData?.repo?.forks_count?.toLocaleString() ?? '-'} sublabel="" />
+        <MetricCard label="Open Issues" value={repoData?.repo?.open_issues_count?.toLocaleString() ?? '-'} sublabel="" />
+        <MetricCard label="Contributors" value={repoData?.contributors?.length?.toLocaleString() ?? '-'} sublabel="" />
+        <MetricCard label="Commits" value={repoData?.commits?.length?.toLocaleString() ?? '-'} sublabel="" />
       </div>
 
       {/* Navigation Tabs */}
@@ -179,17 +202,17 @@ export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }
               </div>
 
               <div className="divide-y divide-[#21262d]">
-                {REPO_COMMITS.map(c => (
+                {repoData?.commits?.map((c:any) => (
                   <div key={c.sha} className="py-2.5 flex items-start justify-between gap-3 group">
                     <div className="flex items-start gap-2.5 min-w-0">
-                      <Avatar name={c.author} size={22} rounded={true} />
+                      <Avatar name={c.author?.login ?? ''} size={22} rounded={true} />
                       <div className="min-w-0">
                         <div className="text-xs font-medium text-[#f0f6fc] group-hover:text-[#2f81f7] transition-colors line-clamp-1">
-                          {c.message}
+                          {c.commit?.message}
                         </div>
                         <div className="flex items-center gap-2 text-[11px] text-[#8b949e] font-mono mt-0.5">
-                          <span className="text-[#c9d1d9]">{c.author}</span>
-                          <span>committed {c.timestamp}</span>
+                          <span className="text-[#c9d1d9]">{c.author?.login}</span>
+                          <span>committed {c.commit?.author?.date ? new Date(c.commit.author.date).toLocaleDateString() : ''}</span>
                           {c.verified && (
                             <span className="px-1 py-0.2 rounded text-[9px] bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
                               Verified
@@ -237,22 +260,22 @@ export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }
             {/* Top Contributors Card */}
             <SidebarSection title="Top Contributors">
               <div className="space-y-2.5">
-                {REPO_CONTRIBUTORS.map(contrib => (
-                  <div key={contrib.username} className="flex items-center justify-between">
+                {repoData?.contributors?.map((contrib:any) => (
+                  <div key={contrib.login} className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={contrib.username} size={26} rounded={true} />
+                      <Avatar name={contrib.login} size={26} rounded={true} />
                       <div>
                         <div className="text-xs font-medium text-[#f0f6fc]">
-                          {contrib.name || contrib.username}
+                          {contrib.login}
                         </div>
                         <div className="text-[10px] font-mono text-[#6e7681]">
-                          @{contrib.username}
+                          @{contrib.login}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs font-mono text-[#c9d1d9]">
-                        {contrib.commitsCount.toLocaleString()}
+                        {contrib.contributions.toLocaleString()}
                       </div>
                       <div className="text-[10px] font-mono text-[#6e7681]">commits</div>
                     </div>
