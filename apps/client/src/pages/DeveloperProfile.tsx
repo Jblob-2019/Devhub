@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { Page } from '../types';
 import { useSearchParams } from 'react-router-dom';
 import { getUser } from '../services/githubApi';
 
-export function DeveloperProfilePage() {
+export function DeveloperProfilePage({ onNav }: { onNav: (page: Page) => void }) {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username');
   const [dev, setDev] = useState<any>(null);

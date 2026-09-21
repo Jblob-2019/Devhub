@@ -169,29 +169,24 @@ export function Nav({ current, onNav, mobile = false }: NavProps) {
                   className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
                   title="View Profile"
                 >
-                  <Avatar name={user.name || user.username || user.email} src={user.avatar_url} size={28} />
+                  <Avatar name={user.name || user.email} src={user.avatar_url} size={28} />
                 </button>
             </>
           ) : (
-            <>
-              <button
-                onClick={() => onNav('login' as Page)}
-                className="dev-btn dev-btn-ghost text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => onNav('register' as Page)}
-                className="dev-btn dev-btn-primary text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-              >
-                Sign Up
-              </button>
-                                            className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-                title="View Developer Profile (@torvalds)"
-              >
-                                    <Avatar name={user.name || user.username || user.email} src={user.avatar_url} size={28} />
-              </button>
-            </>
+              <>
+                <button
+                  onClick={() => onNav('login' as Page)}
+                  className="dev-btn dev-btn-ghost text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => onNav('register' as Page)}
+                  className="dev-btn dev-btn-primary text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                >
+                  Sign Up
+                </button>
+              </>
           )}
         </div>
       </div>

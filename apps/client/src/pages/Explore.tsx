@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Repository, Developer } from '../types';
+import { Page, Repository, Developer } from '../types';
 import {
   Avatar,
   StarCount,
@@ -16,10 +16,12 @@ import { searchRepositories, searchUsers } from '../services/githubApi';
 import { useDevHubStore } from '../store/useDevHubStore';
 
 import { useNavigate } from 'react-router-dom';
-export function ExplorePage() {
+export function ExplorePage({ onNav }: { onNav: (page: Page) => void }) {
   const navigate = useNavigate();
   const [repoResults, setRepoResults] = useState<Repository[]>([]);
   const [devResults, setDevResults] = useState<Developer[]>([]);
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!query) {
       // clear results when no query
@@ -70,7 +72,6 @@ export function ExplorePage() {
   const [tab, setTab] = useState('Repositories');
   const [sort, setSort] = useState('Stars');
   const [filterOpen, setFilterOpen] = useState(true);
-  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
 
   const {

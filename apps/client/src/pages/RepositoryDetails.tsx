@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Page } from '../types';
 import {
   Avatar,
   VectorChart,
@@ -13,7 +14,7 @@ import { useDevHubStore } from '../store/useDevHubStore';
 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-export function RepositoryDetailsPage() {
+export function RepositoryDetailsPage({ onNav }: { onNav: (page: Page) => void }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState('Overview');
   const [starred, setStarred] = useState(false);

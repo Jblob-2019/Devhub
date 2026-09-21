@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Page, Repository, Developer } from '../types';
-import { getRepository, getUser } from '../services/githubApi';
+import { getFullRepository, getUser } from '../services/githubApi';
 import {
   Avatar,
   StarCount,
@@ -48,7 +48,7 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
     async function load() {
       const repos = await Promise.all(savedRepos.map(fullName => {
         const [owner, repo] = fullName.split('/');
-        return getRepository(owner, repo);
+        return getFullRepository(owner, repo);
       }));
       setSavedRepoList(repos);
       const devs = await Promise.all(savedDevs.map(username => getUser(username)));
@@ -124,14 +124,14 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
                   <div
                     key={repo.id}
                     className="dev-card dev-card-interactive p-4 flex items-start gap-3.5 cursor-pointer"
-                    onClick={() => handleRepoClick(`${repo.owner?.login}/${repo.name}`)}
+                    onClick={() => handleRepoClick(`${repo.owner}/${repo.name}`)}
                   >
                     <Avatar name={repo.name} size={36} rounded={false} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <span className="font-semibold text-sm text-[#f0f6fc] hover:text-[#2f81f7] font-mono">
-                            {`${repo.owner?.login}/${repo.name}` }
+                            {`${repo.owner}/${repo.name}` }
                           </span>
                           <p className="text-xs text-[#8b949e] mt-1 mb-2">
                             {repo.description}
@@ -139,7 +139,7 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
                         </div>
                         <SaveButton
                           saved={true}
-                          onToggle={() => toggleSaveRepo(`${repo.owner?.login}/${repo.name}`)}
+                          onToggle={() => toggleSaveRepo(`${repo.owner}/${repo.name}`)}
                         />
                       </div>
                       <div className="flex items-center gap-4 flex-wrap">
