@@ -43,20 +43,29 @@ export function RepositoryDetailsPage() {
   const { savedRepos, toggleSaveRepo } = useDevHubStore();
   const isSaved = savedRepos.includes(`${owner}/${repo}`);
 
+  // Extract owner info - GitHub returns owner as object with login/avatar_url
+  const ownerLogin = repoData?.repo?.owner?.login ?? owner;
+  const ownerAvatar = repoData?.repo?.owner?.avatar_url ?? '';
+
+  // Convert languages object to array for LanguageBar
+  const languagesArray = repoData?.languages
+    ? Object.entries(repoData.languages).map(([name, bytes]) => ({ name, bytes: bytes as number }))
+    : [];
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
       {/* Repository Main Header Banner */}
       <div className="dev-card p-5 mb-5 border border-[#30363d]">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3.5">
-                          <Avatar name={repoData?.repo?.owner ?? ''} size={48} rounded={false} />
+                          <Avatar name={ownerLogin} src={ownerAvatar} size={48} rounded={false} />
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
-                    onClick={() => navigate(`/developer?username=${encodeURIComponent(repoData?.repo?.owner ?? '')}`)}
+                    onClick={() => navigate(`/developer?username=${encodeURIComponent(ownerLogin)}`)}
                     className="text-[#8b949e] hover:text-[#2f81f7] text-sm font-mono hover:underline"
                   >
-                    {repoData?.repo?.owner ?? ''}
+                    {ownerLogin}
                   </button>
                   <span className="text-[#414754]">/</span>
                   <span className="font-bold text-[#f0f6fc] text-xl font-mono">
@@ -156,8 +165,8 @@ export function RepositoryDetailsPage() {
         onChange={setTab}
         className="mb-5"
         counts={{
-          Issues: 324,
-          'Pull Requests': 78,
+          Issues: repoData?.repo?.open_issues_count ?? 0,
+          'Pull Requests': 0, // Would need separate API call
         }}
       />
 
@@ -172,17 +181,21 @@ export function RepositoryDetailsPage() {
                 <span className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider">
                   Languages Breakdown
                 </span>
-                <span className="text-xs text-[#8b949e] font-mono">1.1 GB total code</span>
+                {languagesArray.length > 0 && (
+                  <span className="text-xs text-[#8b949e] font-mono">
+                    {languagesArray.reduce((sum, l) => sum + l.bytes, 0).toLocaleString()} bytes
+                  </span>
+                )}
               </div>
-              <LanguageBar
-                langs={[
-                  { name: 'C', pct: 97.4, color: '#555555' },
-                  { name: 'Assembly', pct: 1.2, color: '#6E4C13' },
-                  { name: 'Makefile', pct: 0.6, color: '#427819' },
-                  { name: 'Python', pct: 0.4, color: '#3572A5' },
-                  { name: 'Shell', pct: 0.4, color: '#89e051' },
-                ]}
-              />
+              {languagesArray.length > 0 ? (
+                <LanguageBar
+                  langs={languagesArray
+                    .sort((a, b) => b.bytes - a.bytes)
+                    .map(l => ({ name: l.name, pct: 0, bytes: l.bytes }))}
+                />
+              ) : (
+                <p className="text-xs text-[#8b949e]">No language data available</p>
+              )}
             </div>
 
             {/* Recent Commits Timeline */}
@@ -238,22 +251,34 @@ export function RepositoryDetailsPage() {
             <SidebarSection title="About">
               <div className="space-y-3 text-xs text-[#8b949e]">
                 <p className="text-[#c9d1d9] leading-relaxed">
-                  Linux kernel source tree and master distribution repository.
+                  {repoData?.repo?.description ?? 'No description available'}
                 </p>
-                <div className="flex items-center gap-2">
-                  <span>🌐</span>
-                  <a href="https://www.kernel.org" target="_blank" rel="noreferrer" className="text-[#2f81f7] hover:underline font-mono">
-                    www.kernel.org
-                  </a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>⚖️</span>
-                  <span>GPL-2.0 License</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>📦</span>
-                  <span>Release v6.12-rc3 (latest)</span>
-                </div>
+                {repoData?.repo?.html_url && (
+                  <div className="flex items-center gap-2">
+                    <span>🌐</span>
+                    <a href={repoData.repo.html_url} target="_blank" rel="noreferrer" className="text-[#2f81f7] hover:underline font-mono">
+                      {repoData.repo.html_url}
+                    </a>
+                  </div>
+                )}
+                {repoData?.repo?.license?.name && (
+                  <div className="flex items-center gap-2">
+                    <span>⚖️</span>
+                    <span>{repoData.repo.license.name}</span>
+                  </div>
+                )}
+                {repoData?.repo?.default_branch && (
+                  <div className="flex items-center gap-2">
+                    <span>🌿</span>
+                    <span>Default branch: {repoData.repo.default_branch}</span>
+                  </div>
+                )}
+                {repoData?.repo?.created_at && (
+                  <div className="flex items-center gap-2">
+                    <span>📅</span>
+                    <span>Created {new Date(repoData.repo.created_at).toLocaleDateString()}</span>
+                  </div>
+                )}
               </div>
             </SidebarSection>
 
