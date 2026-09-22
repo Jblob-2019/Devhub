@@ -18,8 +18,8 @@ function WithNav({ Component }: { Component: React.ComponentType<any> }) {
     const mapping: Record<string, string> = {
       home: '/',
       explore: '/explore',
-      profile: '/profile',
-      repo: '/repo',
+      profile: '/developer',
+      repo: '/repository',
       saved: '/saved',
       dashboard: '/dashboard',
       login: '/login',
@@ -34,10 +34,17 @@ function WithNav({ Component }: { Component: React.ComponentType<any> }) {
 /**
  * ProtectedRoute ensures that the user is authenticated before rendering the component.
  * If not authenticated, redirects to /login.
+ * While loading, shows a spinner to avoid flash of unauthenticated content.
  */
-function ProtectedRoute({ children }: { children: JSX.Element }) {
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return null; // could return a spinner
+  if (loading) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#2f81f7] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -47,24 +54,26 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/" element={<WithNav Component={HomePage} />} />
         <Route path="/explore" element={<WithNav Component={ExplorePage} />} />
-        <Route path="/profile" element={<WithNav Component={DeveloperProfilePage} />} />
-        <Route path="/repo" element={<WithNav Component={RepositoryDetailsPage} />} />
-        <Route
-          path="/saved"
-          element={
-            <ProtectedRoute>
-              <WithNav Component={SavedItemsPage} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <WithNav Component={DashboardPage} />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/developer" element={
+          <ProtectedRoute>
+            <WithNav Component={DeveloperProfilePage} />
+          </ProtectedRoute>
+        } />
+        <Route path="/repository" element={
+          <ProtectedRoute>
+            <WithNav Component={RepositoryDetailsPage} />
+          </ProtectedRoute>
+        } />
+        <Route path="/saved" element={
+          <ProtectedRoute>
+            <WithNav Component={SavedItemsPage} />
+          </ProtectedRoute>
+        } />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <WithNav Component={DashboardPage} />
+          </ProtectedRoute>
+        } />
         <Route path="/login" element={<WithNav Component={LoginPage} />} />
         <Route path="/register" element={<WithNav Component={RegisterPage} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

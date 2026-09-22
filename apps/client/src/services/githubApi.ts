@@ -38,3 +38,11 @@ export const getUser = async (username: string) => {
   if (!resp.ok) throw new Error('Failed to fetch user');
   return await resp.json();
 };
+
+export const getRecommendations = async () => {
+  const resp = await fetch(`${API_BASE}/api/github/recommendations`, {
+    credentials: 'include',
+  });
+  if (!resp.ok) throw new Error('Failed to load recommendations');
+  return await resp.json();
+};

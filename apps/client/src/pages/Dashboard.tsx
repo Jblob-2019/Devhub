@@ -56,7 +56,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => (onNav ?? fallbackNav)('profile')}
+            onClick={() => (onNav ?? fallbackNav)('/developer')}
             className="dev-btn dev-btn-secondary text-xs"
           >
             Public Profile
@@ -141,7 +141,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
                   {myRepos.map(repo => (
                     <div
                       key={repo.name}
-                      onClick={() => (onNav ?? fallbackNav)('repo')}
+                      onClick={() => navigate(`/repository?owner=torvalds&repo=${encodeURIComponent(repo.name)}`)}
                       className="flex items-center justify-between p-2.5 rounded-md hover:bg-[#21262d] transition-colors cursor-pointer group"
                     >
                       <div className="flex items-center gap-2.5">
@@ -180,24 +180,27 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
                   {[
                     { name: 'rust-lang/rust', desc: 'Zero-cost abstractions systems compiler', stars: '94.5k', lang: 'Rust' },
                     { name: 'ziglang/zig', desc: 'General-purpose programming language', stars: '34.1k', lang: 'Zig' },
-                  ].map(rec => (
-                    <div
-                      key={rec.name}
-                      onClick={() => (onNav ?? fallbackNav)('repo')}
-                      className="p-2.5 rounded-md bg-[#0d1117] border border-[#30363d]/50 hover:border-[#2f81f7] cursor-pointer transition-colors"
-                    >
-                      <div className="text-xs font-mono font-semibold text-[#2f81f7]">
-                        {rec.name}
+                  ].map(rec => {
+                    const [owner, repo] = rec.name.split('/');
+                    return (
+                      <div
+                        key={rec.name}
+                        onClick={() => navigate(`/repository?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`)}
+                        className="p-2.5 rounded-md bg-[#0d1117] border border-[#30363d]/50 hover:border-[#2f81f7] cursor-pointer transition-colors"
+                      >
+                        <div className="text-xs font-mono font-semibold text-[#2f81f7]">
+                          {rec.name}
+                        </div>
+                        <div className="text-[11px] text-[#8b949e] line-clamp-1 mt-0.5">
+                          {rec.desc}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5 text-xs">
+                          <LanguageDot lang={rec.lang} />
+                          <StarCount count={rec.stars} />
+                        </div>
                       </div>
-                      <div className="text-[11px] text-[#8b949e] line-clamp-1 mt-0.5">
-                        {rec.desc}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs">
-                        <LanguageDot lang={rec.lang} />
-                        <StarCount count={rec.stars} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </SidebarSection>
 

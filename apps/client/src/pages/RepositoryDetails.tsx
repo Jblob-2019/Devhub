@@ -53,7 +53,7 @@ export function RepositoryDetailsPage() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
-                    onClick={() => navigate('/profile')}
+                    onClick={() => navigate(`/developer?username=${encodeURIComponent(repoData?.repo?.owner ?? '')}`)}
                     className="text-[#8b949e] hover:text-[#2f81f7] text-sm font-mono hover:underline"
                   >
                     {repoData?.repo?.owner ?? ''}

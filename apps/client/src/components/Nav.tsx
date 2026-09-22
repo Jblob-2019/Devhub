@@ -170,9 +170,9 @@ export function Nav({ current, mobile = false }: NavProps) {
                 Sign Out
               </button>
                             <button
-                  onClick={() => onNav('profile' as Page)}
+                  onClick={() => navigate('/developer')}
                   className="flex items-center gap-2 hover:opacity-85 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
-                  title="View Profile"
+                  title="View Developer Profile"
                 >
                   <Avatar name={user.name || user.email} src={user.avatar_url} size={28} />
                 </button>

@@ -27,6 +27,8 @@ export function HomePage() {
     setSelectedCategory,
     searchQuery,
     setSearchQuery,
+    loading,
+    error,
   } = useDevHub();
 
   const { savedRepos, toggleSaveRepo, addRecent } = useDevHubStore();
@@ -34,8 +36,42 @@ export function HomePage() {
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('/repository');
+    const [owner, repo] = fullName.split('/');
+    navigate(`/repository?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-[#2f81f7] border-t-transparent rounded-full animate-spin" />
+            <p className="text-xs text-[#8b949e] font-mono">Loading recommendations...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
+        <div className="dev-card p-6 border border-[#f85149]/50 bg-[#f85149]/10 text-center">
+          <div className="text-4xl mb-2">⚠</div>
+          <h2 className="text-xl font-semibold text-[#f85149] mb-2">Failed to load recommendations</h2>
+          <p className="text-[#8b949e] mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="dev-btn dev-btn-primary"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
@@ -101,52 +137,54 @@ export function HomePage() {
         {/* Main Feed Column */}
         <div className="space-y-6">
           {/* Featured Repository Spotlight Card */}
-          <div className="dev-card p-4 border border-[#30363d]">
-            <h3 className="text-sm font-semibold text-[#f0f6fc] mb-2">Featured Repository</h3>
+          {featuredRepo && (
+            <div className="dev-card p-4 border border-[#30363d]">
+              <h3 className="text-sm font-semibold text-[#f0f6fc] mb-2">Featured Repository</h3>
 
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex gap-3.5 flex-1 min-w-0">
-                <Avatar name={featuredRepo.name} size={46} rounded={false} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <button
-                      onClick={() => handleRepoClick(featuredRepo.fullName)}
-                      className="font-bold text-[#f0f6fc] text-base hover:text-[#2f81f7] hover:underline"
-                    >
-                      {featuredRepo.fullName}
-                    </button>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#238636]/15 border border-[#238636] text-[#3fb950]">
-                      Active Release
-                    </span>
-                  </div>
-
-                  <p className="text-sm text-[#8b949e] mb-3 leading-relaxed">
-                    {featuredRepo.description}
-                  </p>
-
-                  <div className="flex items-center gap-4 flex-wrap mb-3.5">
-                    <StarCount count={featuredRepo.stars} />
-                    <ForkCount count={featuredRepo.forks} />
-                    <LanguageDot lang={featuredRepo.language} />
-                    <span className="text-xs text-[#6e7681] font-mono">
-                      Updated {featuredRepo.updatedAt}
-                    </span>
-                  </div>
-
-                  {featuredRepo.languages && (
-                    <div className="pt-2 border-t border-[#30363d]/50">
-                      <LanguageBar langs={featuredRepo.languages} />
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex gap-3.5 flex-1 min-w-0">
+                  <Avatar name={featuredRepo.name} size={46} rounded={false} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <button
+                        onClick={() => handleRepoClick(featuredRepo.fullName)}
+                        className="font-bold text-[#f0f6fc] text-base hover:text-[#2f81f7] hover:underline"
+                      >
+                        {featuredRepo.fullName}
+                      </button>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-[#238636]/15 border border-[#238636] text-[#3fb950]">
+                        Active Release
+                      </span>
                     </div>
-                  )}
-                </div>
-              </div>
 
-              <SaveButton
-                saved={savedRepos.includes(featuredRepo.fullName)}
-                onToggle={() => toggleSaveRepo(featuredRepo.fullName)}
-              />
+                    <p className="text-sm text-[#8b949e] mb-3 leading-relaxed">
+                      {featuredRepo.description}
+                    </p>
+
+                    <div className="flex items-center gap-4 flex-wrap mb-3.5">
+                      <StarCount count={featuredRepo.stars} />
+                      <ForkCount count={featuredRepo.forks} />
+                      <LanguageDot lang={featuredRepo.language} />
+                      <span className="text-xs text-[#6e7681] font-mono">
+                        Updated {featuredRepo.updatedAt}
+                      </span>
+                    </div>
+
+                    {featuredRepo.languages && (
+                      <div className="pt-2 border-t border-[#30363d]/50">
+                        <LanguageBar langs={featuredRepo.languages} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <SaveButton
+                  saved={savedRepos.includes(featuredRepo.fullName)}
+                  onToggle={() => toggleSaveRepo(featuredRepo.fullName)}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Trending Repositories Section */}
           <div>

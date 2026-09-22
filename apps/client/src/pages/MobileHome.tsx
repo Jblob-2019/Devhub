@@ -22,7 +22,8 @@ export function MobileHomePage() {
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('/repository');
+    const [owner, repo] = fullName.split('/');
+    navigate(`/repository?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`);
   };
 
   const handleDevClick = (username: string) => {

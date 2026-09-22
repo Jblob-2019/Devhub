@@ -1,4 +1,4 @@
-export type Page = 'home' | 'explore' | 'profile' | 'repo' | 'saved' | 'dashboard' | 'login' | 'register';
+export type Page = 'home' | 'explore' | 'profile' | 'repo' | 'saved' | 'dashboard' | 'login' | 'register' | '/developer' | '/repository';
 
 export type FrameMode = 'desktop' | 'mobile';
 
