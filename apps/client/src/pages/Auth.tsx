@@ -1,3 +1,4 @@
+import type { Page } from '../types';
 import React, { useState } from 'react';
 import { login, register, githubLogin } from '../services/authService';
 import { useAuth } from '../hooks/useAuth';
@@ -182,10 +183,10 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
   );
 }
 
-export function LoginPage({ onNav }: { onNav: (page: Page) => void }) {
+export function LoginPage({ onNav }: { onNav?: (page: Page) => void }) {
   return <AuthPage onNav={onNav} initialMode="login" />;
 }
 
-export function RegisterPage({ onNav }: { onNav: (page: Page) => void }) {
+export function RegisterPage({ onNav }: { onNav?: (page: Page) => void }) {
   return <AuthPage onNav={onNav} initialMode="register" />;
 }

@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+
 import { Page } from '../types';
 import {
   Avatar,
@@ -13,10 +16,15 @@ import {
 } from '../components/DevComponents';
 import { useDevHubStore } from '../store/useDevHubStore';
 
-export function DashboardPage({ onNav }: { onNav: (page: Page) => void }) {
+export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
   const [tab, setTab] = useState('Overview');
   const [alertDismissed, setAlertDismissed] = useState(false);
+  const navigate = useNavigate();
+  const fallbackNav = (page: Page) => {
+    navigate(page === 'home' ? '/' : page.startsWith('/') ? page : `/${page}`);
+  };
   const { savedRepos, savedDevs } = useDevHubStore();
+
 
   const myRepos = [
     { name: 'linux', stars: '166k', lang: 'C', updated: '30m ago', isPrivate: false },
@@ -48,7 +56,7 @@ export function DashboardPage({ onNav }: { onNav: (page: Page) => void }) {
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => onNav('profile')}
+            onClick={() => (onNav ?? fallbackNav)('profile')}
             className="dev-btn dev-btn-secondary text-xs"
           >
             Public Profile
@@ -133,7 +141,7 @@ export function DashboardPage({ onNav }: { onNav: (page: Page) => void }) {
                   {myRepos.map(repo => (
                     <div
                       key={repo.name}
-                      onClick={() => onNav('repo')}
+                      onClick={() => (onNav ?? fallbackNav)('repo')}
                       className="flex items-center justify-between p-2.5 rounded-md hover:bg-[#21262d] transition-colors cursor-pointer group"
                     >
                       <div className="flex items-center gap-2.5">
@@ -175,7 +183,7 @@ export function DashboardPage({ onNav }: { onNav: (page: Page) => void }) {
                   ].map(rec => (
                     <div
                       key={rec.name}
-                      onClick={() => onNav('repo')}
+                      onClick={() => (onNav ?? fallbackNav)('repo')}
                       className="p-2.5 rounded-md bg-[#0d1117] border border-[#30363d]/50 hover:border-[#2f81f7] cursor-pointer transition-colors"
                     >
                       <div className="text-xs font-mono font-semibold text-[#2f81f7]">
