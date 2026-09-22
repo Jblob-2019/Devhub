@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { API_BASE } from '../lib/apiBase';
 
 /** Simple user shape returned from /auth/me */
 interface AuthUser {
@@ -28,7 +29,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 /** Fetch current session */
 const fetchCurrentUser = async (): Promise<AuthUser | null> => {
   try {
-    const resp = await fetch('/api/auth/me', {
+    const resp = await fetch(`${API_BASE}/api/auth/me`, {
       credentials: 'include',
     });
     if (!resp.ok) return null;
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

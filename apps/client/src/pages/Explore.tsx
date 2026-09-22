@@ -132,12 +132,14 @@ export function ExplorePage() {
 
   const handleSelectRepo = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    navigate('/repo');
+    const [owner, repo] = fullName.split('/');
+    navigate(`/repository?owner=${owner}&repo=${repo}`);
   };
+
 
   const handleSelectDev = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    navigate('/profile');
+    navigate(`/developer?username=${username}`);
   };
 
   return (

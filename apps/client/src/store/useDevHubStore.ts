@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
+import { API_BASE } from '../lib/apiBase';
+
 export interface SavedState {
   savedRepos: string[]; // repository fullNames (e.g. 'vercel/next.js')
   savedDevs: string[]; // developer handles (e.g. 'torvalds')
@@ -7,22 +9,26 @@ export interface SavedState {
   recentlyViewed: { type: 'repo' | 'dev'; id: string; name: string; time: string }[];
 }
 
-// Helper to fetch favorites from backend
 const fetchFavorites = async (): Promise<SavedState> => {
-  const resp = await fetch('/api/favorites', { credentials: 'include' });
+  const resp = await fetch(`${API_BASE}/api/favorites`, { credentials: 'include' });
   if (!resp.ok) {
     console.error('Failed to load favorites');
     return { savedRepos: [], savedDevs: [], followingDevs: [], recentlyViewed: [] };
   }
   const data = await resp.json();
   // Backend returns array of { id, type, target }
-  const savedRepos = data.filter((f:any) => f.type === 'repository').map((f:any) => f.target);
-  const savedDevs = data.filter((f:any) => f.type === 'developer').map((f:any) => f.target);
+  const savedRepos = data.filter((f: any) => f.type === 'repository').map((f: any) => f.target);
+  const savedDevs = data.filter((f: any) => f.type === 'developer').map((f: any) => f.target);
   return { savedRepos, savedDevs, followingDevs: [], recentlyViewed: [] };
 };
 
 export function useDevHubStore() {
-  const [state, setState] = useState<SavedState>({ savedRepos: [], savedDevs: [], followingDevs: [], recentlyViewed: [] });
+  const [state, setState] = useState<SavedState>({
+    savedRepos: [],
+    savedDevs: [],
+    followingDevs: [],
+    recentlyViewed: [],
+  });
 
   // Load favorites on mount
   useEffect(() => {
@@ -37,13 +43,13 @@ export function useDevHubStore() {
     const exists = state.savedRepos.includes(repoName);
     if (exists) {
       // DELETE favorite
-      await fetch(`/api/favorites/repository/${encodeURIComponent(repoName)}`, {
+      await fetch(`${API_BASE}/api/favorites/repository/${encodeURIComponent(repoName)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
     } else {
       // POST new favorite
-      await fetch('/api/favorites', {
+      await fetch(`${API_BASE}/api/favorites`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -59,12 +65,12 @@ export function useDevHubStore() {
   const toggleSaveDev = useCallback(async (devHandle: string) => {
     const exists = state.savedDevs.includes(devHandle);
     if (exists) {
-      await fetch(`/api/favorites/developer/${encodeURIComponent(devHandle)}`, {
+      await fetch(`${API_BASE}/api/favorites/developer/${encodeURIComponent(devHandle)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
     } else {
-      await fetch('/api/favorites', {
+      await fetch(`${API_BASE}/api/favorites`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

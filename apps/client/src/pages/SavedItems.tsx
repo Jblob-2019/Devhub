@@ -54,12 +54,13 @@ export function SavedItemsPage() {
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('/repository');
+    const [owner, repo] = fullName.split('/');
+    onNav(`/repository?owner=${owner}&repo=${repo}`);
   };
 
   const handleDevClick = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    onNav('/developer');
+    onNav(`/developer?username=${username}`);
   };
 
   return (
@@ -253,7 +254,14 @@ export function SavedItemsPage() {
               {recentlyViewed.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => onNav(item.type === 'repo' ? 'repo' : 'profile')}
+                  onClick={() => {
+                      if (item.type === 'repo') {
+                        const [owner, repo] = item.name.split('/');
+                        onNav(`/repository?owner=${owner}&repo=${repo}`);
+                      } else {
+                        onNav(`/developer?username=${item.name}`);
+                      }
+                    }}
                   className="w-full flex items-center justify-between p-2 rounded-md hover:bg-[#21262d] text-left transition-colors group"
                 >
                   <div className="flex items-center gap-2 min-w-0">

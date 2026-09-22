@@ -3,8 +3,10 @@
  * All calls go through the backend via Vite proxy.
  */
 
+import { API_BASE } from '../lib/apiBase';
+
 export const searchRepositories = async (query: string) => {
-  const resp = await fetch(`/api/github/search/repositories?q=${encodeURIComponent(query)}`, {
+  const resp = await fetch(`${API_BASE}/api/github/search/repositories?q=${encodeURIComponent(query)}`, {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error('Failed to search repositories');
@@ -13,7 +15,7 @@ export const searchRepositories = async (query: string) => {
 };
 
 export const searchUsers = async (query: string) => {
-  const resp = await fetch(`/api/github/search/users?q=${encodeURIComponent(query)}`, {
+  const resp = await fetch(`${API_BASE}/api/github/search/users?q=${encodeURIComponent(query)}`, {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error('Failed to search users');
@@ -22,7 +24,7 @@ export const searchUsers = async (query: string) => {
 };
 
 export const getFullRepository = async (owner: string, repo: string) => {
-  const resp = await fetch(`/api/github/repos/${owner}/${repo}`, {
+  const resp = await fetch(`${API_BASE}/api/github/repos/${owner}/${repo}`, {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error('Failed to fetch repository');
@@ -30,7 +32,7 @@ export const getFullRepository = async (owner: string, repo: string) => {
 };
 
 export const getUser = async (username: string) => {
-  const resp = await fetch(`/api/github/users/${username}`, {
+  const resp = await fetch(`${API_BASE}/api/github/users/${username}`, {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error('Failed to fetch user');
