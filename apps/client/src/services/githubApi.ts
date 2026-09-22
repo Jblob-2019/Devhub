@@ -46,3 +46,14 @@ export const getRecommendations = async () => {
   if (!resp.ok) throw new Error('Failed to load recommendations');
   return await resp.json();
 };
+
+export const getDeveloperProfile = async (username: string) => {
+  const resp = await fetch(`${API_BASE}/api/github/users/${encodeURIComponent(username)}/profile`, {
+    credentials: 'include',
+  });
+  if (!resp.ok) {
+    if (resp.status === 404) throw new Error('Developer not found');
+    throw new Error('Failed to fetch developer profile');
+  }
+  return await resp.json();
+};

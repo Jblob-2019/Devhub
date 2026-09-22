@@ -71,3 +71,76 @@ export interface SavedCollection {
   itemCount: number;
   updatedAt: string;
 }
+
+// Developer Profile types
+export interface DeveloperProfileUser {
+  login: string;
+  name: string | null;
+  bio: string | null;
+  avatarUrl: string;
+  htmlUrl: string;
+  followers: number;
+  following: number;
+  publicRepos: number;
+  location: string | null;
+  company: string | null;
+  blog: string | null;
+  createdAt: string;
+}
+
+export interface DeveloperProfileStats {
+  repos: number;
+  stars: number;
+  forks: number;
+  followers: number;
+  following: number;
+}
+
+export interface DeveloperProfileLanguage {
+  name: string;
+  bytes: number;
+  pct: number;
+  color: string;
+}
+
+export interface DeveloperProfileContributions {
+  total: number;
+  weeks: Array<{
+    days: Array<{
+      date: string;
+      count: number;
+      color: string;
+    }>;
+  }>;
+}
+
+export interface DeveloperProfileActivityItem {
+  type: string;
+  repo: string | null;
+  repoUrl: string | null;
+  createdAt: string;
+  payload: any;
+}
+
+export interface DeveloperProfileRepository {
+  id: number;
+  name: string;
+  fullName: string;
+  description: string | null;
+  stars: number;
+  forks: number;
+  language: string | null;
+  topics: string[];
+  updatedAt: string;
+  isPrivate: boolean;
+  htmlUrl: string;
+}
+
+export interface DeveloperProfileData {
+  user: DeveloperProfileUser;
+  stats: DeveloperProfileStats;
+  languages: DeveloperProfileLanguage[];
+  contributions: DeveloperProfileContributions;
+  activity: DeveloperProfileActivityItem[];
+  repositories: DeveloperProfileRepository[];
+}

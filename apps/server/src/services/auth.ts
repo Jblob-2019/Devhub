@@ -2,13 +2,16 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/user.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not set in environment variables');
-}
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not set in environment variables');
+  }
+  return secret;
+};
 
 export const hashPassword = async (plain: string) => {
-  const saltRounds = 10; // can be tuned via env if needed
+  const saltRounds = 10;
   const hash = await bcrypt.hash(plain, saltRounds);
   return hash;
 };
@@ -18,14 +21,13 @@ export const verifyPassword = async (plain: string, hash: string) => {
 };
 
 export const signJwt = (user: User) => {
-  // payload minimal: user id, email, optionally name
   const payload = { sub: user.id, email: user.email, name: user.name };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
 };
 
 export const verifyJwt = (token: string) => {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string; name?: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as { sub: string; email: string; name?: string };
     return decoded;
   } catch (err) {
     return null;

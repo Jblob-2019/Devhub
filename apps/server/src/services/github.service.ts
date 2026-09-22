@@ -6,29 +6,50 @@
  * The service returns JSON responses directly to the frontend.
  */
 export class GitHubService {
-  private token: string;
-  private headers: Record<string, string>;
+  private token: string | null = null;
+  private headers: Record<string, string> | null = null;
 
-  constructor() {
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) {
-      throw new Error('GITHUB_TOKEN is not configured');
+  private ensureConfig() {
+    if (!this.token) {
+      const token = process.env.GITHUB_TOKEN;
+      if (!token) {
+        throw new Error('GITHUB_TOKEN is not configured');
+      }
+      this.token = token;
+      this.headers = {
+        Authorization: `Bearer ${this.token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
     }
-    this.token = token;
-    this.headers = {
-      Authorization: `Bearer ${this.token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
   }
 
   private async request<T>(url: string): Promise<T> {
-    const resp = await fetch(url, { headers: this.headers });
+    this.ensureConfig();
+    const resp = await fetch(url, { headers: this.headers! });
     if (!resp.ok) {
       const err = await resp.text();
       throw new Error(`GitHub API error ${resp.status}: ${err}`);
     }
     return (await resp.json()) as T;
+  }
+
+  private async requestGraphQL<T>(query: string, variables: Record<string, any>): Promise<T> {
+    this.ensureConfig();
+    const resp = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: this.headers!,
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`GitHub GraphQL error ${resp.status}: ${err}`);
+    }
+    const result = await resp.json();
+    if (result.errors) {
+      throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+    }
+    return result.data as T;
   }
 
   // Search repositories by query string
@@ -75,6 +96,61 @@ export class GitHubService {
   // Get user (developer) profile by username
   async getUser(username: string) {
     return this.request<any>(`https://api.github.com/users/${username}`);
+  }
+
+  // Get user repositories (public, sorted by stars)
+  async getUserRepos(username: string, perPage = 100) {
+    const params = new URLSearchParams({
+      sort: 'stars',
+      direction: 'desc',
+      per_page: String(perPage),
+      type: 'public',
+    });
+    return this.request<any[]>(`https://api.github.com/users/${username}/repos?${params.toString()}`);
+  }
+
+  // Get user events (public activity)
+  async getUserEvents(username: string, perPage = 50) {
+    const params = new URLSearchParams({ per_page: String(perPage) });
+    return this.request<any[]>(`https://api.github.com/users/${username}/events/public?${params.toString()}`);
+  }
+
+  // Get user contribution calendar (via GraphQL)
+  async getUserContributions(username: string) {
+    const query = `
+      query($username: String!) {
+        user(login: $username) {
+          contributionsCollection {
+            contributionCalendar {
+              totalContributions
+              weeks {
+                contributionDays {
+                  date
+                  contributionCount
+                  color
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    return this.requestGraphQL<{
+      user: {
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: number;
+            weeks: Array<{
+              contributionDays: Array<{
+                date: string;
+                contributionCount: number;
+                color: string;
+              }>;
+            }>;
+          };
+        };
+      };
+    }>(query, { username });
   }
 
   // Get authenticated user's rate limit

@@ -4,32 +4,38 @@ import { hashPassword, verifyPassword, signJwt, verifyJwt } from '../services/au
 import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGithubToUser } from '../models/user.js';
 
 const router = Router();
-const GITHUB_CALLBACK_URL = process.env.GITHUB_CALLBACK_URL;
-if (!GITHUB_CALLBACK_URL) {
-  throw new Error('GITHUB_CALLBACK_URL is not configured');
-}
-const FRONTEND_URL = process.env.FRONTEND_URL;
-if (!FRONTEND_URL) {
-  throw new Error('FRONTEND_URL is not configured');
-}
 
-// Cookie configuration
-// In development (HTTP), use 'lax' which works on localhost without HTTPS.
-// In production (HTTPS), use 'none' with secure: true for cross-site cookies.
-const isProd = process.env.NODE_ENV === 'production';
-const cookieOptions = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? ('none' as const) : ('lax' as const),
-  path: '/',
+const getGithubCallbackUrl = () => {
+  const url = process.env.GITHUB_CALLBACK_URL;
+  if (!url) throw new Error('GITHUB_CALLBACK_URL is not configured');
+  return url;
 };
 
-const oauthCookieOptions = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? ('none' as const) : ('lax' as const),
-  path: '/',
-  maxAge: 10 * 60 * 1000,
+const getFrontendUrl = () => {
+  const url = process.env.FRONTEND_URL;
+  if (!url) throw new Error('FRONTEND_URL is not configured');
+  return url;
+};
+
+const getCookieOptions = () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? ('none' as const) : ('lax' as const),
+    path: '/',
+  };
+};
+
+const getOauthCookieOptions = () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? ('none' as const) : ('lax' as const),
+    path: '/',
+    maxAge: 10 * 60 * 1000,
+  };
 };
 
 // ---------- Email registration ----------
@@ -46,7 +52,7 @@ router.post('/register', async (req, res) => {
   const user = await createUser({ name, email, password_hash });
   const token = signJwt(user);
   res
-    .cookie('session', token, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 })
+    .cookie('session', token, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 })
     .status(201)
     .json({
       id: user.id,
@@ -73,7 +79,7 @@ router.post('/login', async (req, res) => {
   }
   const token = signJwt(user);
   res
-    .cookie('session', token, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 })
+    .cookie('session', token, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 })
     .json({
       id: user.id,
       email: user.email,
@@ -85,8 +91,8 @@ router.post('/login', async (req, res) => {
 
 // ---------- Logout ----------
 router.post('/logout', (req, res) => {
-  res.clearCookie('session', cookieOptions);
-  res.clearCookie('oauth_state', oauthCookieOptions);
+  res.clearCookie('session', getCookieOptions());
+  res.clearCookie('oauth_state', getOauthCookieOptions());
   res.json({ message: 'Logged out' });
 });
 
@@ -116,10 +122,10 @@ router.get('/github', (req, res) => {
     return res.status(500).json({ error: 'GitHub OAuth is not configured' });
   }
   const state = crypto.randomUUID();
-  res.cookie('oauth_state', state, oauthCookieOptions);
+  res.cookie('oauth_state', state, getOauthCookieOptions());
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: GITHUB_CALLBACK_URL,
+    redirect_uri: getGithubCallbackUrl(),
     scope: 'read:user user:email',
     state,
   });
@@ -144,7 +150,7 @@ router.get('/github/callback', async (req, res) => {
         client_id: process.env.GITHUB_CLIENT_ID!,
         client_secret: process.env.GITHUB_CLIENT_SECRET!,
         code,
-        redirect_uri: GITHUB_CALLBACK_URL,
+        redirect_uri: getGithubCallbackUrl(),
         state,
       }),
     });
@@ -207,10 +213,10 @@ router.get('/github/callback', async (req, res) => {
       });
     }
     const jwtToken = signJwt(user);
-    res.clearCookie('oauth_state', oauthCookieOptions);
-    res.cookie('session', jwtToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    res.clearCookie('oauth_state', getOauthCookieOptions());
+    res.cookie('session', jwtToken, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 });
     // Redirect to frontend auth callback page to complete the flow
-    res.redirect(`${FRONTEND_URL}/auth/callback`);
+    res.redirect(`${getFrontendUrl()}/auth/callback`);
   } catch (error) {
     console.error('GitHub OAuth callback failed:', error);
     res.status(500).send('GitHub authentication failed');

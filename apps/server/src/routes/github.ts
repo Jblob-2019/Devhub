@@ -5,6 +5,84 @@ import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 const gh = new GitHubService();
 
+// Language color map for stats cards
+const LANGUAGE_COLORS: Record<string, string> = {
+  JavaScript: '#f1e05a',
+  TypeScript: '#3178c6',
+  Python: '#3572A5',
+  Java: '#b07219',
+  'C++': '#f34b7d',
+  C: '#555555',
+  'C#': '#178600',
+  Go: '#00ADD8',
+  Rust: '#dea584',
+  PHP: '#4F5D95',
+  Ruby: '#701516',
+  Swift: '#ffac45',
+  Kotlin: '#F18E33',
+  Dart: '#00B4AB',
+  Vue: '#41b883',
+  Svelte: '#ff3e00',
+  HTML: '#e34c26',
+  CSS: '#1572B6',
+  Shell: '#89e051',
+  Dockerfile: '#384d54',
+  Other: '#8b949e',
+};
+
+// Helper: aggregate language stats across repos
+function aggregateLanguages(repos: any[]) {
+  const langBytes: Record<string, number> = {};
+  let totalBytes = 0;
+
+  for (const repo of repos) {
+    if (repo.language) {
+      const bytes = repo.size * 1024; // approximate from repo size in KB
+      langBytes[repo.language] = (langBytes[repo.language] || 0) + bytes;
+      totalBytes += bytes;
+    }
+  }
+
+  return Object.entries(langBytes)
+    .map(([name, bytes]) => ({
+      name,
+      bytes,
+      pct: totalBytes > 0 ? Math.round((bytes / totalBytes) * 100) : 0,
+      color: LANGUAGE_COLORS[name] || LANGUAGE_COLORS.Other,
+    }))
+    .sort((a, b) => b.bytes - a.bytes);
+}
+
+// Helper: process contribution calendar into heatmap format
+function processContributionCalendar(calendar: any) {
+  if (!calendar?.weeks) return { total: 0, weeks: [] };
+
+  const total = calendar.totalContributions || 0;
+  const weeks = calendar.weeks.map((week: any) => ({
+    days: week.contributionDays.map((day: any) => ({
+      date: day.date,
+      count: day.contributionCount,
+      color: day.color,
+    })),
+  }));
+
+  return { total, weeks };
+}
+
+// Helper: process events into activity timeline
+function processEvents(events: any[]) {
+  return events
+    .filter((e) => ['PushEvent', 'CreateEvent', 'IssuesEvent', 'PullRequestEvent', 'WatchEvent', 'ForkEvent', 'ReleaseEvent'].includes(e.type))
+    .slice(0, 30)
+    .map((e) => ({
+      type: e.type,
+      repo: e.repo?.name,
+      repoUrl: e.repo?.url?.replace('api.github.com/repos', 'github.com'),
+      createdAt: e.created_at,
+      payload: e.payload,
+    }));
+}
+
 // Repository search
 router.get('/search/repositories', async (req, res) => {
   const { q, per_page, page } = req.query as Record<string, string>;
@@ -46,7 +124,7 @@ router.get('/repos/:owner/:repo', async (req, res) => {
   }
 });
 
-// User profile details
+// User profile details (basic)
 router.get('/users/:username', async (req, res) => {
   const { username } = req.params;
   try {
@@ -55,6 +133,85 @@ router.get('/users/:username', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to fetch user data' });
+  }
+});
+
+// Comprehensive developer profile endpoint
+router.get('/users/:username/profile', async (req, res) => {
+  const { username } = req.params;
+  try {
+    // Fetch all data in parallel
+    const [userData, repos, events, contributions] = await Promise.all([
+      gh.getUser(username),
+      gh.getUserRepos(username, 100),
+      gh.getUserEvents(username, 50),
+      gh.getUserContributions(username).catch(() => null), // GraphQL may fail if no token scope
+    ]);
+
+    // Calculate stats from repos
+    const totalStars = repos.reduce((sum, r) => sum + (r.stargazers_count || 0), 0);
+    const totalForks = repos.reduce((sum, r) => sum + (r.forks_count || 0), 0);
+    const repoCount = repos.length;
+
+    // Language distribution
+    const languageStats = aggregateLanguages(repos);
+
+    // Contribution calendar
+    const contributionsData = contributions?.user?.contributionsCollection?.contributionCalendar
+      ? processContributionCalendar(contributions.user.contributionsCollection.contributionCalendar)
+      : { total: 0, weeks: [] };
+
+    // Activity timeline
+    const activityTimeline = processEvents(events);
+
+    // Repository grid data (top 12 by stars)
+    const topRepos = repos
+      .sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0))
+      .slice(0, 12)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        fullName: r.full_name,
+        description: r.description,
+        stars: r.stargazers_count,
+        forks: r.forks_count,
+        language: r.language,
+        topics: r.topics || [],
+        updatedAt: r.updated_at,
+        isPrivate: r.private,
+        htmlUrl: r.html_url,
+      }));
+
+    res.json({
+      user: {
+        login: userData.login,
+        name: userData.name,
+        bio: userData.bio,
+        avatarUrl: userData.avatar_url,
+        htmlUrl: userData.html_url,
+        followers: userData.followers,
+        following: userData.following,
+        publicRepos: userData.public_repos,
+        location: userData.location,
+        company: userData.company,
+        blog: userData.blog,
+        createdAt: userData.created_at,
+      },
+      stats: {
+        repos: repoCount,
+        stars: totalStars,
+        forks: totalForks,
+        followers: userData.followers,
+        following: userData.following,
+      },
+      languages: languageStats,
+      contributions: contributionsData,
+      activity: activityTimeline,
+      repositories: topRepos,
+    });
+  } catch (e) {
+    console.error('Profile fetch error:', e);
+    res.status(500).json({ error: 'Failed to fetch developer profile' });
   }
 });
 
