@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { API_BASE } from '../lib/apiBase';
 
-/** Simple user shape returned from /auth/me */
-interface AuthUser {
+export interface AuthUser {
   id: string;
   email: string;
   name?: string;
@@ -10,13 +9,7 @@ interface AuthUser {
   avatar_url?: string;
 }
 
-/**
- * Authentication context providing the current user, loading state, and helper actions.
- * This context is mounted at the root of the app (see App.tsx) and replaces the previous
- * per‑component `useAuth` hook. All components import `useAuth` from `../hooks/useAuth`,
- * which now simply re‑exports this hook.
- */
-
+/** Context shape – this shape is now exported so any file can import it */
 export interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
@@ -24,23 +17,26 @@ export interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-/** Fetch current session */
+/** Fetch the current user – must include cookies */
 const fetchCurrentUser = async (): Promise<AuthUser | null> => {
   try {
-    const resp = await fetch(`${API_BASE}/api/auth/me`, {
+    const resp = await fetch(`${API_BASE}/auth/me`, {
       credentials: 'include',
     });
     if (!resp.ok) return null;
-    const data = await resp.json();
-    return data as AuthUser;
+    return (await resp.json()) as AuthUser;
   } catch (e) {
-    console.error('Error fetching current user', e);
+    console.debug('[AUTH] fetchCurrentUser error', e);
     return null;
   }
-};
+}
 
+/**
+ * AuthProvider – single source of truth for authentication state.
+ * - loading = true while we are waiting for /auth/me
+ * - user  = null until the /auth/me call resolves successfully
+ * - refresh updates both `user` and `loading`
+ */
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,35 +48,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(false);
   };
 
+  // Run once on mount
   useEffect(() => {
-    // Initial load of auth state on mount
     refresh();
   }, []);
 
   const logout = async () => {
-    try {
-      await fetch(`${API_BASE}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      setUser(null);
-    } catch (e) {
-      console.error('Logout failed', e);
-    }
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    setUser(null);
   };
 
-  return (
-    <AuthContext.Provider value={{ user, loading, refresh, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value: AuthContextValue = {
+    user,
+    loading,
+    refresh,
+    logout,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-/** Hook to access the authentication context. */
 export const useAuth = (): AuthContextValue => {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 };
+
+export const AuthContext = createContext<AuthContextValue | undefined>(undefined);

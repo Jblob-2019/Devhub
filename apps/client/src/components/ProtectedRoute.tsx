@@ -2,15 +2,11 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ children }: any) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Show loading screen while auth is being initialized
+  // 1️⃣ Loading → show spinner, do NOT redirect
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0b141c] flex items-center justify-center" role="status" aria-label="Loading authentication">
@@ -22,7 +18,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  // If no user, redirect to login with return path
+  // 2️⃣ If not authenticated → redirect to login (only after loading finishes)
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }

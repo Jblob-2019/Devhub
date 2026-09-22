@@ -1,40 +1,44 @@
 import type { Page } from '../types';
-import React, { useState } from 'react';
+import React, { useState, FormEvent } from 'react';
 import { login, register, githubLogin } from '../services/authService';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
-interface AuthProps {
-  onNav?: (page: Page) => void;
+export function AuthPage({ onNav, initialMode = 'login' }: {
+  onNav?: (page: any) => void;
   initialMode?: 'login' | 'register';
-}
-
-export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
+}) {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState(''); // registration name (or fallback)
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { refresh } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+
     if (!email || !password) return;
     setIsLoading(true);
+
     try {
       if (mode === 'login') {
         await login(email, password);
       } else {
-        // registration: use provided name or fallback to email as the display name
         await register(name || email, email, password);
       }
+
+      // Refresh the auth context – this will populate AuthContext.user
       await refresh();
-      // Redirect to home page after successful authentication
-      window.location.href = '/';
-    } catch (err) {
-      console.error(err);
-      setError('Authentication failed. Please check your credentials and try again.');
+
+      // Now we are authenticated – go to home
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      console.error('[AUTH] submit error', err);
+      setError(err?.message ?? 'Authentication failed');
     } finally {
       setIsLoading(false);
     }
@@ -54,49 +58,47 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
           <p className="text-xs text-[#8b949e] mt-1">
             Access developer analytics, personalized feeds, and repo bookmarks
           </p>
-        </div>
 
-        {/* GitHub OAuth Button */}
-        <button
-          onClick={githubLogin}
-          className="dev-btn dev-btn-secondary w-full py-2.5 text-sm gap-2.5 mb-5 justify-center"
-        >
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-          </svg>
-          <span className="font-semibold text-[#f0f6fc]">Continue with GitHub</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0d1117] text-[#3fb950] border border-[#238636]/40 ml-auto">
-            OAuth 2.0
-          </span>
-        </button>
+          {/* GitHub OAuth Button */}
+          <button
+            onClick={githubLogin}
+            className="dev-btn dev-btn-secondary w-full py-2.5 text-sm gap-2.5 mb-5 justify-center"
+          >
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2.0.27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.65-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+            <span className="font-semibold text-[#f0f6fc]">Continue with GitHub</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#0d1117] text-[#3fb950] border border-[#238636]/40 ml-auto">
+              OAuth 2.0
+            </span>
+          </button>
 
-        {/* Hairline Divider */}
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 h-px bg-[#30363d]" />
-          <span className="text-xs font-mono text-[#6e7681]">or with email credentials</span>
-          <div className="flex-1 h-px bg-[#30363d]" />
-        </div>
+          {/* Divider */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex-1 h-px bg-[#30363d]" />
+            <span className="text-xs font-mono text-[#6e7681]">or with email credentials</span>
+            <div className="flex-1 h-px bg-[#30363d]" />
+          </div>
 
-        {/* Credentials Form */}
-        <div className="dev-card p-6 border border-[#30363d]">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  className="dev-input"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
+          {/* Form */}
+          <div className="dev-card p-6 border border-[#30363d]">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'register' && (
+                <div>
+                  <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    className="dev-input"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
-            <div>
               <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">
                 Email Address
               </label>
@@ -108,9 +110,7 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
                 onChange={e => setEmail(e.target.value)}
                 required
               />
-            </div>
 
-            <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-xs font-semibold text-[#c9d1d9]">
                   Password
@@ -128,53 +128,55 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                autoComplete={mode === 'register' ? "new-password" : "current-password"}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                 aria-label="Password"
               />
-            </div>
+
+              {error && (
+                <div className="text-red-500 text-sm mt-2" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="dev-btn dev-btn-primary w-full py-2 text-sm mt-2 font-semibold"
+                disabled={isLoading}
+              >
+                {isLoading
+                  ? mode === 'login'
+                    ? 'Signing in...'
+                    : 'Creating account...'
+                  : mode === 'login'
+                    ? 'Sign In'
+                    : 'Create Developer Account'}
+              </button>
+            </form>
 
             {error && (
-              <div className="text-red-500 text-sm mt-2" role="alert">
-                {error}
+              <div className="mt-5 pt-4 border-t border-[#30363d] text-center text-xs text-[#8b949e]">
+                {mode === 'login' ? (
+                  <span>
+                    New to DevHub?{' '}
+                    <button
+                      onClick={() => setMode('register')}
+                      className="text-[#2f81f7] font-semibold hover:underline"
+                    >
+                      Create an account
+                    </button>
+                  </span>
+                ) : (
+                  <span>
+                    Already have an account?{' '}
+                    <button
+                      onClick={() => setMode('login')}
+                      className="text-[#2f81f7] font-semibold hover:underline"
+                    >
+                      Sign in
+                    </button>
+                  </span>
+                )}
               </div>
-            )}
-
-            <button
-              type="submit"
-              className="dev-btn dev-btn-primary w-full py-2 text-sm mt-2 font-semibold"
-              disabled={isLoading}
-            >
-              {isLoading
-                ? mode === 'login'
-                  ? 'Signing in...'
-                  : 'Creating account...'
-                : mode === 'login'
-                ? 'Sign In'
-                : 'Create Developer Account'}
-            </button>
-          </form>
-
-          <div className="mt-5 pt-4 border-t border-[#30363d] text-center text-xs text-[#8b949e]">
-            {mode === 'login' ? (
-              <span>
-                New to DevHub?{' '}
-                <button
-                  onClick={() => setMode('register')}
-                  className="text-[#2f81f7] font-semibold hover:underline"
-                >
-                  Create an account
-                </button>
-              </span>
-            ) : (
-              <span>
-                Already have an account?{' '}
-                <button
-                  onClick={() => setMode('login')}
-                  className="text-[#2f81f7] font-semibold hover:underline"
-                >
-                  Sign in
-                </button>
-              </span>
             )}
           </div>
         </div>
@@ -183,10 +185,12 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
   );
 }
 
-export function LoginPage({ onNav }: { onNav?: (page: Page) => void }) {
+/* -----------------------------------------------------------------
+   Login / Register wrappers – they just set the initial mode
+   ----------------------------------------------------------------- */
+export function LoginPage({ onNav }: { onNav?: (page: any) => void }) {
   return <AuthPage onNav={onNav} initialMode="login" />;
 }
-
-export function RegisterPage({ onNav }: { onNav?: (page: Page) => void }) {
+export function RegisterPage({ onNav }: { onNav?: (page: any) => void }) {
   return <AuthPage onNav={onNav} initialMode="register" />;
 }
