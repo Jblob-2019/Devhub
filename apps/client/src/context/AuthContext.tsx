@@ -20,7 +20,7 @@ export interface AuthContextValue {
 /** Fetch the current user – must include cookies */
 const fetchCurrentUser = async (): Promise<AuthUser | null> => {
   try {
-    const resp = await fetch(`${API_BASE}/auth/me`, {
+    const resp = await fetch(`${API_BASE}/api/auth/me`, {
       credentials: 'include',
     });
     if (!resp.ok) return null;
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const logout = async () => {
-    await fetch(`${API_BASE}/auth/logout`, {
+    await fetch(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include',
     });

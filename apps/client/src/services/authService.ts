@@ -23,6 +23,6 @@ export const register = async (name: string, email: string, password: string) =>
 };
 
 export const githubLogin = () => {
-  // Redirect browser to backend GitHub OAuth start endpoint (via proxy)
-  window.location.href = '/api/auth/github';
+  // Redirect browser to backend GitHub OAuth start endpoint
+  window.location.href = `${API_BASE}/api/auth/github`;
 };
