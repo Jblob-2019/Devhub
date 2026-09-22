@@ -21,7 +21,7 @@ export function ExplorePage() {
   const onNav = (page: string) => navigate(page);
   const [repoResults, setRepoResults] = useState<Repository[]>([]);
   const [devResults, setDevResults] = useState<Developer[]>([]);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('stars:>0');
   const [filters, setFilters] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!query) {
