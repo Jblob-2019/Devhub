@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { login, register, githubLogin } from '../services/authService';
 import { useAuth } from '../hooks/useAuth';
-import { Page } from '../types';
 
 interface AuthProps {
-  onNav: (page: Page) => void;
+  onNav?: (page: Page) => void;
   initialMode?: 'login' | 'register';
 }
 
@@ -30,7 +29,8 @@ export function AuthPage({ onNav, initialMode = 'login' }: AuthProps) {
         await register(name || email, email, password);
       }
       await refresh();
-      onNav('dashboard');
+      // Redirect to home page after successful authentication
+      window.location.href = '/';
     } catch (err) {
       console.error(err);
       setError('Authentication failed. Please check your credentials and try again.');

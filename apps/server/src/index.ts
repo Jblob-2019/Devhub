@@ -24,6 +24,7 @@ app.use(express.json());
 app.use('/api/favorites', favoritesRouter);
 
 // Auth routes (register, login, logout, me, GitHub OAuth)
+app.use('/api/auth', authRouter);
 app.use('/api/github', githubRouter);
 
 app.get('/health', (req, res) => {

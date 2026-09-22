@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Page } from '../types';
+import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
   StarCount,
@@ -11,19 +11,22 @@ import {
 import { useDevHub } from '../hooks/useDevHub';
 import { useDevHubStore } from '../store/useDevHubStore';
 
-export function MobileHomePage({ onNav }: { onNav: (page: Page) => void }) {
+export function MobileHomePage() {
+  const navigate = useNavigate();
+  const onNav = (page: string) => navigate(page);
+
   const { categories, selectedCategory, setSelectedCategory, repositories, developers } = useDevHub();
   const { savedRepos, toggleSaveRepo, addRecent } = useDevHubStore();
   const [alertDismissed, setAlertDismissed] = useState(false);
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('repo');
+    onNav('/repository');
   };
 
   const handleDevClick = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    onNav('profile');
+    onNav('/developer');
   };
 
   return (

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Page, Repository, Developer } from '../types';
+import { Repository, Developer } from '../types';
 import {
   Avatar,
   StarCount,
@@ -16,8 +16,9 @@ import { searchRepositories, searchUsers } from '../services/githubApi';
 import { useDevHubStore } from '../store/useDevHubStore';
 
 import { useNavigate } from 'react-router-dom';
-export function ExplorePage({ onNav }: { onNav: (page: Page) => void }) {
+export function ExplorePage() {
   const navigate = useNavigate();
+  const onNav = (page: string) => navigate(page);
   const [repoResults, setRepoResults] = useState<Repository[]>([]);
   const [devResults, setDevResults] = useState<Developer[]>([]);
   const [query, setQuery] = useState('');

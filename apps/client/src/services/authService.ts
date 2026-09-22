@@ -1,5 +1,5 @@
 export const login = async (email: string, password: string) => {
-  const resp = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+  const resp = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -10,7 +10,7 @@ export const login = async (email: string, password: string) => {
 };
 
 export const register = async (name: string, email: string, password: string) => {
-  const resp = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
+  const resp = await fetch('/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -21,6 +21,6 @@ export const register = async (name: string, email: string, password: string) =>
 };
 
 export const githubLogin = () => {
-  // Redirect browser to backend GitHub OAuth start endpoint
-  window.location.href = `${import.meta.env.VITE_API_URL}/auth/github`;
+  // Redirect browser to backend GitHub OAuth start endpoint (via proxy)
+  window.location.href = '/api/auth/github';
 };

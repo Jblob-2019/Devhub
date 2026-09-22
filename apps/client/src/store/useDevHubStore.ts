@@ -9,7 +9,7 @@ export interface SavedState {
 
 // Helper to fetch favorites from backend
 const fetchFavorites = async (): Promise<SavedState> => {
-  const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`, { credentials: 'include' });
+  const resp = await fetch('/api/favorites', { credentials: 'include' });
   if (!resp.ok) {
     console.error('Failed to load favorites');
     return { savedRepos: [], savedDevs: [], followingDevs: [], recentlyViewed: [] };
@@ -37,13 +37,13 @@ export function useDevHubStore() {
     const exists = state.savedRepos.includes(repoName);
     if (exists) {
       // DELETE favorite
-      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/repository/${encodeURIComponent(repoName)}`, {
+      await fetch(`/api/favorites/repository/${encodeURIComponent(repoName)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
     } else {
       // POST new favorite
-      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`, {
+      await fetch('/api/favorites', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -59,12 +59,12 @@ export function useDevHubStore() {
   const toggleSaveDev = useCallback(async (devHandle: string) => {
     const exists = state.savedDevs.includes(devHandle);
     if (exists) {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites/developer/${encodeURIComponent(devHandle)}`, {
+      await fetch(`/api/favorites/developer/${encodeURIComponent(devHandle)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
     } else {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/favorites`, {
+      await fetch('/api/favorites', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

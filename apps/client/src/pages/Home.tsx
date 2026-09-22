@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Page } from '../types';
+import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
   VectorChart,
@@ -15,7 +15,10 @@ import {
 import { useDevHub } from '../hooks/useDevHub';
 import { useDevHubStore } from '../store/useDevHubStore';
 
-export function HomePage({ onNav }: { onNav: (page: Page) => void }) {
+export function HomePage() {
+  const navigate = useNavigate();
+  const onNav = (page: string) => navigate(page);
+
   const {
     featuredRepo,
     repositories,
@@ -31,7 +34,7 @@ export function HomePage({ onNav }: { onNav: (page: Page) => void }) {
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('repo');
+    onNav('/repository');
   };
 
   return (
@@ -257,9 +260,9 @@ export function HomePage({ onNav }: { onNav: (page: Page) => void }) {
           <SidebarSection title="Quick Actions">
             <div className="space-y-1">
               {[
-                { label: 'Import from GitHub', icon: '↓', target: 'login' as Page },
-                { label: 'User Dashboard', icon: '◈', target: 'dashboard' as Page },
-                { label: 'Saved Bookmarks', icon: '★', target: 'saved' as Page },
+                { label: 'Import from GitHub', icon: '↓', target: '/login' },
+                  { label: 'User Dashboard', icon: '◈', target: '/dashboard' },
+                  { label: 'Saved Bookmarks', icon: '★', target: '/saved' },
               ].map(action => (
                 <button
                   key={action.label}

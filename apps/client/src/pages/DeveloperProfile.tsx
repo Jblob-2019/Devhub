@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Page } from '../types';
 import { useSearchParams } from 'react-router-dom';
 import { getUser } from '../services/githubApi';
 
-export function DeveloperProfilePage({ onNav }: { onNav: (page: Page) => void }) {
+export function DeveloperProfilePage() {
   const [searchParams] = useSearchParams();
   const username = searchParams.get('username');
   const [dev, setDev] = useState<any>(null);
@@ -47,7 +46,6 @@ export function DeveloperProfilePage({ onNav }: { onNav: (page: Page) => void })
         <img src={dev.avatar_url} alt={dev.login} className="w-24 h-24 rounded-full mb-4" />
       )}
       <p className="text-[#c9d1d9]">{dev.bio}</p>
-      {/* Additional fields like followers, repos, etc. can be added here */}
     </div>
   );
 }

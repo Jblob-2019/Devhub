@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { Page } from '../types';
 import { Avatar, DevSearch } from './DevComponents';
 
 interface NavProps {
   current: Page;
-  onNav: (page: Page) => void;
   mobile?: boolean;
 }
 
-export function Nav({ current, onNav, mobile = false }: NavProps) {
+export function Nav({ current, mobile = false }: NavProps) {
+  const navigate = useNavigate();
+  const onNav = (page: Page) => {
+    const path = page === 'home' ? '/' : page.startsWith('/') ? page : `/${page}`;
+    navigate(path);
+  };
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
 

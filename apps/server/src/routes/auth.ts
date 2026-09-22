@@ -14,17 +14,20 @@ if (!FRONTEND_URL) {
 }
 
 // Cookie configuration
+// In development (HTTP), use 'lax' which works on localhost without HTTPS.
+// In production (HTTPS), use 'none' with secure: true for cross-site cookies.
+const isProd = process.env.NODE_ENV === 'production';
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'none' as const,
+  secure: isProd,
+  sameSite: isProd ? ('none' as const) : ('lax' as const),
   path: '/',
 };
 
 const oauthCookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'none' as const,
+  secure: isProd,
+  sameSite: isProd ? ('none' as const) : ('lax' as const),
   path: '/',
   maxAge: 10 * 60 * 1000,
 };
@@ -206,8 +209,8 @@ router.get('/github/callback', async (req, res) => {
     const jwtToken = signJwt(user);
     res.clearCookie('oauth_state', oauthCookieOptions);
     res.cookie('session', jwtToken, { ...cookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
-    // Redirect back to frontend root; frontend will read session cookie
-    res.redirect(FRONTEND_URL);
+    // Redirect to frontend auth callback page to complete the flow
+    res.redirect(`${FRONTEND_URL}/auth/callback`);
   } catch (error) {
     console.error('GitHub OAuth callback failed:', error);
     res.status(500).send('GitHub authentication failed');

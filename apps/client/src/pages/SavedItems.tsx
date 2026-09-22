@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Page, Repository, Developer } from '../types';
+import { Repository, Developer } from '../types';
 import { getFullRepository, getUser } from '../services/githubApi';
 import {
   Avatar,
@@ -15,19 +15,11 @@ import {
 // Removed static mock imports – saved items now rely on backend favorites
 // import { TRENDING_REPOSITORIES, TOP_DEVELOPERS } from '../services/githubService';
 import { useDevHubStore } from '../store/useDevHubStore';
+import { useNavigate } from 'react-router-dom';
 
-import { useAuth } from '../hooks/useAuth';
-
-import { LoginPage } from './Auth';
-
-export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return <div className="flex items-center justify-center h-full text-[#8b949e]">Loading…</div>;
-  }
-  if (!user) {
-    return <LoginPage onNav={onNav} />;
-  }
+export function SavedItemsPage() {
+  const navigate = useNavigate();
+  const onNav = (page: string) => navigate(page);
 
   const [tab, setTab] = useState('Repositories');
   const [query, setQuery] = useState('');
@@ -62,12 +54,12 @@ export function SavedItemsPage({ onNav }: { onNav: (page: Page) => void }) {
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
-    onNav('repo');
+    onNav('/repository');
   };
 
   const handleDevClick = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    onNav('profile');
+    onNav('/developer');
   };
 
   return (
