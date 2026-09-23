@@ -119,9 +119,21 @@ router.get('/repos/:owner/:repo', async (req, res) => {
     const contributors = await gh.getRepositoryContributors(owner, repo);
     const commits = await gh.getRepositoryCommits(owner, repo);
     res.json({ repo: repoData, languages, contributors, commits });
-  } catch (e) {
+  } catch (e: any) {
     console.error(e);
-    res.status(500).json({ error: 'Failed to fetch repository data' });
+    // Extract status from error message (format: "GitHub API error 404: ...")
+    const statusMatch = e?.message?.match(/GitHub API error (\d+):/);
+    const status = statusMatch ? parseInt(statusMatch[1], 10) : 500;
+    if (status === 404) {
+      return res.status(404).json({ error: 'Repository not found', status: 404 });
+    }
+    if (status === 403) {
+      return res.status(403).json({ error: 'GitHub API rate limit exceeded or access forbidden', status: 403 });
+    }
+    if (status === 401) {
+      return res.status(401).json({ error: 'GitHub authentication required', status: 401 });
+    }
+    res.status(status).json({ error: 'Failed to fetch repository data', status });
   }
 });
 

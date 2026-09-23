@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Avatar,
   VectorChart,
@@ -7,6 +7,7 @@ import {
   MetricCard,
   LanguageBar,
   SidebarSection,
+  EmptyState,
 } from '../components/DevComponents';
 import { getFullRepository } from '../services/githubApi';
 import { useDevHubStore } from '../store/useDevHubStore';
@@ -15,6 +16,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export function RepositoryDetailsPage() {
   const navigate = useNavigate();
+  const { savedRepos, toggleSaveRepo } = useDevHubStore();
   const [tab, setTab] = useState('Overview');
   const [starred, setStarred] = useState(false);
   const [watched, setWatched] = useState(false);
@@ -25,32 +27,94 @@ export function RepositoryDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const isSaved = savedRepos?.includes(`${owner}/${repo}`) ?? false;
+
+  const fetchRepository = useCallback(async () => {
     if (!owner || !repo) {
       setError('Missing owner or repo in URL');
       setLoading(false);
       return;
     }
     setLoading(true);
-    getFullRepository(owner, repo)
-      .then(data => setRepoData(data))
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
+    setError(null);
+    try {
+      const data = await getFullRepository(owner, repo);
+      setRepoData(data);
+    } catch (err: any) {
+      const message = err?.message ?? 'Failed to load repository';
+      if (message.includes('404') || message.includes('Not Found')) {
+        setError(`Repository "${owner}/${repo}" not found`);
+      } else if (message.includes('403') || message.includes('Forbidden') || message.includes('rate limit')) {
+        setError('GitHub API rate limit exceeded or access forbidden. Please try again later.');
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [owner, repo]);
 
-  if (loading) return <div className="flex items-center justify-center h-full text-[#8b949e]">Loading…</div>;
-  if (error) return <div className="text-red-500">{error}</div>;
-  const { savedRepos, toggleSaveRepo } = useDevHubStore();
-  const isSaved = savedRepos.includes(`${owner}/${repo}`);
+  useEffect(() => {
+    fetchRepository();
+  }, [fetchRepository]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
+        <div className="dev-card p-5 mb-5 border border-[#30363d]">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded border border-[#30363d] bg-[#21262d] animate-pulse" />
+            <div className="flex-1 space-y-3">
+              <div className="h-6 w-3/4 bg-[#21262d] rounded animate-pulse" />
+              <div className="h-4 w-1/2 bg-[#21262d] rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className="dev-card p-3 animate-pulse">
+              <div className="h-4 w-1/3 bg-[#21262d] rounded mb-1" />
+              <div className="h-8 w-1/2 bg-[#21262d] rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="dev-card p-4 animate-pulse">
+          <div className="h-4 w-1/4 bg-[#21262d] rounded mb-3" />
+          <div className="h-32 bg-[#21262d] rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  // Error state with retry
+  if (error || !repoData) {
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
+        <EmptyState
+          title={error ?? 'Repository not found'}
+          subtitle={owner && repo ? `Could not load "${owner}/${repo}"` : 'Invalid repository URL. Please provide both owner and repo parameters.'}
+          action="Retry"
+          onAction={fetchRepository}
+        />
+      </div>
+    );
+  }
+
+  const repoInfo = repoData.repo;
 
   // Extract owner info - GitHub returns owner as object with login/avatar_url
-  const ownerLogin = repoData?.repo?.owner?.login ?? owner;
-  const ownerAvatar = repoData?.repo?.owner?.avatar_url ?? '';
+  const ownerLogin = repoInfo?.owner?.login ?? owner;
+  const ownerAvatar = repoInfo?.owner?.avatar_url ?? '';
 
-  // Convert languages object to array for LanguageBar
+  // Convert languages object to array and calculate percentages
   const languagesArray = repoData?.languages
     ? Object.entries(repoData.languages).map(([name, bytes]) => ({ name, bytes: bytes as number }))
     : [];
+  const totalBytes = languagesArray.reduce((sum, l) => sum + l.bytes, 0);
+  const languagesWithPct = languagesArray
+    .sort((a, b) => b.bytes - a.bytes)
+    .map(l => ({ name: l.name, pct: totalBytes > 0 ? Math.round((l.bytes / totalBytes) * 100) : 0, bytes: l.bytes }));
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
@@ -107,7 +171,9 @@ export function RepositoryDetailsPage() {
                 <path d="M1.5 8C3 4 5.2 2 8 2s5 2 6.5 6c-1.5 4-3.7 6-6.5 6s-5-2-6.5-6z" />
               </svg>
               <span>{watched ? 'Watching' : 'Watch'}</span>
-              <span className="text-[10px] font-mono opacity-80">8.2k</span>
+              <span className="text-[10px] font-mono opacity-80">
+                {repoInfo?.subscribers_count?.toLocaleString() ?? repoInfo?.watchers_count?.toLocaleString() ?? '—'}
+              </span>
             </button>
 
             <button
@@ -127,7 +193,9 @@ export function RepositoryDetailsPage() {
                 <polygon points="8,2 10,6 14.5,6.5 11,10 12,14.5 8,12 4,14.5 5,10 1.5,6.5 6,6" />
               </svg>
               <span>{starred ? 'Starred' : 'Star'}</span>
-              <span className="text-[10px] font-mono opacity-80">166k</span>
+              <span className="text-[10px] font-mono opacity-80">
+                {repoInfo?.stargazers_count?.toLocaleString() ?? '—'}
+              </span>
             </button>
 
             <button className="dev-btn dev-btn-secondary text-xs gap-1.5">
@@ -138,12 +206,14 @@ export function RepositoryDetailsPage() {
                 <path d="M5 4.5v3l3 2 3-2V4.5" />
               </svg>
               <span>Fork</span>
-              <span className="text-[10px] font-mono opacity-80">50.4k</span>
+              <span className="text-[10px] font-mono opacity-80">
+                {repoInfo?.forks_count?.toLocaleString() ?? '—'}
+              </span>
             </button>
 
             <SaveButton
               saved={isSaved}
-              onToggle={() => toggleSaveRepo(`${owner}/${repo}`)}
+              onToggle={() => toggleSaveRepo?.(`${owner}/${repo}`)}
             />
           </div>
         </div>
@@ -151,11 +221,11 @@ export function RepositoryDetailsPage() {
 
       {/* 5-Metric Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <MetricCard label="Stars" value={repoData?.repo?.stargazers_count?.toLocaleString() ?? '-'} sublabel="" />
-        <MetricCard label="Forks" value={repoData?.repo?.forks_count?.toLocaleString() ?? '-'} sublabel="" />
-        <MetricCard label="Open Issues" value={repoData?.repo?.open_issues_count?.toLocaleString() ?? '-'} sublabel="" />
-        <MetricCard label="Contributors" value={repoData?.contributors?.length?.toLocaleString() ?? '-'} sublabel="" />
-        <MetricCard label="Commits" value={repoData?.commits?.length?.toLocaleString() ?? '-'} sublabel="" />
+        <MetricCard label="Stars" value={repoInfo?.stargazers_count?.toLocaleString() ?? '—'} sublabel="" />
+        <MetricCard label="Forks" value={repoInfo?.forks_count?.toLocaleString() ?? '—'} sublabel="" />
+        <MetricCard label="Open Issues" value={repoInfo?.open_issues_count?.toLocaleString() ?? '—'} sublabel="" />
+        <MetricCard label="Contributors" value={repoData?.contributors?.length?.toLocaleString() ?? '—'} sublabel="" />
+        <MetricCard label="Commits" value={repoData?.commits?.length?.toLocaleString() ?? '—'} sublabel="" />
       </div>
 
       {/* Navigation Tabs */}
@@ -165,8 +235,8 @@ export function RepositoryDetailsPage() {
         onChange={setTab}
         className="mb-5"
         counts={{
-          Issues: repoData?.repo?.open_issues_count ?? 0,
-          'Pull Requests': 0, // Would need separate API call
+          Issues: repoInfo?.open_issues_count ?? 0,
+          'Pull Requests': repoInfo?.open_issues_count ? '—' : 0, // PR count not in basic repo API
         }}
       />
 
@@ -183,15 +253,13 @@ export function RepositoryDetailsPage() {
                 </span>
                 {languagesArray.length > 0 && (
                   <span className="text-xs text-[#8b949e] font-mono">
-                    {languagesArray.reduce((sum, l) => sum + l.bytes, 0).toLocaleString()} bytes
+                    {totalBytes.toLocaleString()} bytes
                   </span>
                 )}
               </div>
-              {languagesArray.length > 0 ? (
+              {languagesWithPct.length > 0 ? (
                 <LanguageBar
-                  langs={languagesArray
-                    .sort((a, b) => b.bytes - a.bytes)
-                    .map(l => ({ name: l.name, pct: 0, bytes: l.bytes }))}
+                  langs={languagesWithPct}
                 />
               ) : (
                 <p className="text-xs text-[#8b949e]">No language data available</p>
@@ -251,32 +319,58 @@ export function RepositoryDetailsPage() {
             <SidebarSection title="About">
               <div className="space-y-3 text-xs text-[#8b949e]">
                 <p className="text-[#c9d1d9] leading-relaxed">
-                  {repoData?.repo?.description ?? 'No description available'}
+                  {repoInfo?.description ?? 'No description available'}
                 </p>
-                {repoData?.repo?.html_url && (
+                {repoInfo?.homepage && (
                   <div className="flex items-center gap-2">
-                    <span>🌐</span>
-                    <a href={repoData.repo.html_url} target="_blank" rel="noreferrer" className="text-[#2f81f7] hover:underline font-mono">
-                      {repoData.repo.html_url}
+                    <span>🏠</span>
+                    <a href={repoInfo.homepage} target="_blank" rel="noreferrer" className="text-[#2f81f7] hover:underline font-mono">
+                      {repoInfo.homepage}
                     </a>
                   </div>
                 )}
-                {repoData?.repo?.license?.name && (
+                {repoInfo?.html_url && (
+                  <div className="flex items-center gap-2">
+                    <span>🌐</span>
+                    <a href={repoInfo.html_url} target="_blank" rel="noreferrer" className="text-[#2f81f7] hover:underline font-mono">
+                      {repoInfo.html_url}
+                    </a>
+                  </div>
+                )}
+                {repoInfo?.license?.name && (
                   <div className="flex items-center gap-2">
                     <span>⚖️</span>
-                    <span>{repoData.repo.license.name}</span>
+                    <span>{repoInfo.license.name}</span>
                   </div>
                 )}
-                {repoData?.repo?.default_branch && (
+                {repoInfo?.default_branch && (
                   <div className="flex items-center gap-2">
                     <span>🌿</span>
-                    <span>Default branch: {repoData.repo.default_branch}</span>
+                    <span>Default branch: {repoInfo.default_branch}</span>
                   </div>
                 )}
-                {repoData?.repo?.created_at && (
+                {repoInfo?.created_at && (
                   <div className="flex items-center gap-2">
                     <span>📅</span>
-                    <span>Created {new Date(repoData.repo.created_at).toLocaleDateString()}</span>
+                    <span>Created {new Date(repoInfo.created_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {repoInfo?.updated_at && (
+                  <div className="flex items-center gap-2">
+                    <span>🔄</span>
+                    <span>Updated {new Date(repoInfo.updated_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {repoInfo?.pushed_at && (
+                  <div className="flex items-center gap-2">
+                    <span>📤</span>
+                    <span>Last push {new Date(repoInfo.pushed_at).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {repoInfo?.size && (
+                  <div className="flex items-center gap-2">
+                    <span>💾</span>
+                    <span>Size: {(repoInfo.size / 1024).toFixed(1)} MB</span>
                   </div>
                 )}
               </div>
