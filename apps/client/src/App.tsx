@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FrameMode } from './types';
 import { Nav } from './components/Nav';
@@ -93,17 +93,94 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
 // Auth callback page for GitHub OAuth redirect
 function AuthCallbackPage() {
   const { refresh } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
+  const completedRef = React.useRef(false);
 
   React.useEffect(() => {
+    // Guard against StrictMode double-invocation and multiple runs
+    if (completedRef.current) return;
+    completedRef.current = true;
+
     const initAuth = async () => {
-      await refresh();
-      // Redirect to intended destination or home
-      const from = (location.state as any)?.from?.pathname || '/';
-      window.location.href = from;
+      const user = await refresh();
+      if (user) {
+        console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
+        navigate('/home', { replace: true });
+      } else {
+        console.debug('[AUTH] OAuth callback: /api/auth/me returned 401');
+        // Show explicit error instead of silent redirect
+        // We'll handle this in the render below via state
+      }
     };
     initAuth();
-  }, [refresh, location]);
+  }, [refresh, navigate]);
+
+  // We don't know the result yet if we're here - show loading
+  // If refresh returns null, we need to show error. But we can't easily
+  // communicate that back from the effect without state. Let's use state.
+  // Actually, let's refactor to use state for the result.
+  return (
+    <div className="min-h-screen bg-[#0b141c] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-[#2f81f7] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-[#8b949e] font-mono">Completing sign in...</p>
+      </div>
+    </div>
+  );
+}
+
+// Better AuthCallbackPage with proper error handling
+function AuthCallbackPageWithError() {
+  const { refresh } = useAuth();
+  const navigate = useNavigate();
+  const [error, setError] = React.useState<string | null>(null);
+  const completedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+
+    const initAuth = async () => {
+      const user = await refresh();
+      if (user) {
+        console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
+        navigate('/home', { replace: true });
+      } else {
+        console.debug('[AUTH] OAuth callback: /api/auth/me returned 401');
+        setError('GitHub sign-in completed, but DevHub could not restore your session. Please try again.');
+      }
+    };
+    initAuth();
+  }, [refresh, navigate]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#0b141c] flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center">
+          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-8">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-[#f0f6fc] mb-2">Authentication Failed</h2>
+            <p className="text-[#8b949e] mb-6">{error}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => window.location.href = `${import.meta.env.VITE_API_BASE || ''}/api/auth/github`}
+                className="dev-btn dev-btn-primary"
+              >
+                Retry with GitHub
+              </button>
+              <button
+                onClick={() => navigate('/login', { replace: true })}
+                className="dev-btn dev-btn-secondary"
+              >
+                Sign In with Email
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0b141c] flex items-center justify-center">
@@ -178,7 +255,7 @@ export default function App() {
           <main className="flex-1">
             <MobileLayout>
               <Routes>
-                <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                <Route path="/auth/callback" element={<AuthCallbackPageWithError />} />
                 <Route path="/login" element={<AuthGate redirectTo="/"><LoginPage /></AuthGate>} />
                 <Route path="/register" element={<AuthGate redirectTo="/"><RegisterPage /></AuthGate>} />
                 <Route path="/explore" element={<ExplorePage />} />

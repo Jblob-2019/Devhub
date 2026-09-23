@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { API_BASE } from '../lib/apiBase';
 
 export interface AuthUser {
@@ -7,13 +7,15 @@ export interface AuthUser {
   name?: string;
   username?: string;
   avatar_url?: string;
+  github_username?: string;
+  github_id?: string;
 }
 
 /** Context shape – this shape is now exported so any file can import it */
 export interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<AuthUser | null>;
   logout: () => Promise<void>;
 }
 
@@ -23,6 +25,7 @@ const fetchCurrentUser = async (): Promise<AuthUser | null> => {
     const resp = await fetch(`${API_BASE}/api/auth/me`, {
       credentials: 'include',
     });
+    console.debug('[AUTH] /api/auth/me status:', resp.status);
     if (!resp.ok) return null;
     return (await resp.json()) as AuthUser;
   } catch (e) {
@@ -35,23 +38,24 @@ const fetchCurrentUser = async (): Promise<AuthUser | null> => {
  * AuthProvider – single source of truth for authentication state.
  * - loading = true while we are waiting for /auth/me
  * - user  = null until the /auth/me call resolves successfully
- * - refresh updates both `user` and `loading`
+ * - refresh updates both `user` and `loading`, returns the user
  */
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     const u = await fetchCurrentUser();
     setUser(u);
     setLoading(false);
-  };
+    return u;
+  }, []);
 
   // Run once on mount
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   const logout = async () => {
     await fetch(`${API_BASE}/api/auth/logout`, {

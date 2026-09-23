@@ -408,10 +408,13 @@ export function DeveloperProfilePage() {
   const [isSaved, setIsSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const checkSaved = async () => {
-    if (!username) return;
+  // Determine the effective username: from URL param or logged-in user's GitHub username
+  const effectiveUsername = username || authUser?.github_username;
+  const isOwnProfile = !username && !!authUser?.github_username;
+
+  const checkSaved = async (targetUsername: string) => {
     try {
-      const saved = await isFavorite(username);
+      const saved = await isFavorite(targetUsername);
       setIsSaved(saved);
     } catch {
       // ignore
@@ -419,21 +422,21 @@ export function DeveloperProfilePage() {
   };
 
   const handleSaveToggle = async () => {
-    if (!username || !authUser) {
+    if (!effectiveUsername || !authUser) {
       navigate('/login');
       return;
     }
     setSaving(true);
     try {
       if (isSaved) {
-        await removeFavorite('developer', username);
+        await removeFavorite('developer', effectiveUsername);
         setIsSaved(false);
       } else {
         await addFavorite({
           type: 'developer',
-          targetId: username,
-          targetName: username,
-          targetUrl: `https://github.com/${username}`,
+          targetId: effectiveUsername,
+          targetName: effectiveUsername,
+          targetUrl: `https://github.com/${effectiveUsername}`,
           metadata: { avatarUrl: profile?.user.avatarUrl },
         });
         setIsSaved(true);
@@ -446,9 +449,9 @@ export function DeveloperProfilePage() {
   };
 
   useEffect(() => {
-    if (!username) {
+    if (!effectiveUsername) {
       setLoading(false);
-      setError('Username not specified in URL');
+      setError('No username specified and not logged in with GitHub');
       return;
     }
 
@@ -456,9 +459,9 @@ export function DeveloperProfilePage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getDeveloperProfile(username);
+        const data = await getDeveloperProfile(effectiveUsername);
         setProfile(data);
-        await checkSaved();
+        await checkSaved(effectiveUsername);
       } catch (e: any) {
         setError(e.message || 'Failed to load profile');
       } finally {
@@ -467,14 +470,24 @@ export function DeveloperProfilePage() {
     };
 
     fetchProfile();
-  }, [username, authUser]);
+  }, [effectiveUsername, authUser]);
 
-  if (!username) {
+  if (!effectiveUsername) {
     return (
       <div className="max-w-[1440px] mx-auto px-6 py-6 page-enter">
         <div className="text-center py-12">
           <h1 className="text-2xl font-bold text-[#f0f6fc] mb-2">Developer Profile</h1>
-          <p className="text-[#8b949e]">Username not specified in URL. Use <code className="bg-[#21262d] px-2 py-1 rounded">?username=octocat</code></p>
+          <p className="text-[#8b949e] mb-4">Username not specified in URL.</p>
+          {!authUser ? (
+            <button
+              onClick={() => navigate('/login')}
+              className="dev-btn dev-btn-primary"
+            >
+              Sign in to view your profile
+            </button>
+          ) : (
+            <p className="text-[#8b949e]">Connect your GitHub account to view your developer workspace.</p>
+          )}
         </div>
       </div>
     );
