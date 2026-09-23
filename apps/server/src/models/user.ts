@@ -9,6 +9,7 @@ export interface User {
   avatar_url?: string;
   github_id?: string;
   github_username?: string;
+  github_access_token?: string; // encrypted GitHub OAuth access token
   created_at?: string;
   updated_at?: string;
 }
@@ -18,8 +19,8 @@ export interface User {
  */
 export const createUser = async (user: Partial<User>) => {
   const result = await query(
-    `INSERT INTO users (email, password_hash, name, username, avatar_url, github_id, github_username)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO users (email, password_hash, name, username, avatar_url, github_id, github_username, github_access_token)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
     [
       user.email,
@@ -29,6 +30,7 @@ export const createUser = async (user: Partial<User>) => {
       user.avatar_url ?? null,
       user.github_id ?? null,
       user.github_username ?? null,
+      user.github_access_token ?? null,
     ]
   );
   return result.rows[0] as User;
@@ -49,11 +51,19 @@ export const findUserByGithubId = async (githubId: string) => {
   return result.rows[0] as User | undefined;
 };
 
-export const linkGithubToUser = async (userId: string, githubId: string, githubUsername: string, avatarUrl?: string) => {
+export const linkGithubToUser = async (userId: string, githubId: string, githubUsername: string, avatarUrl?: string, githubAccessToken?: string) => {
   const result = await query(
-    `UPDATE users SET github_id = $1, github_username = $2, avatar_url = COALESCE($3, avatar_url)
-     WHERE id = $4 RETURNING *`,
-    [githubId, githubUsername, avatarUrl ?? null, userId]
+    `UPDATE users SET github_id = $1, github_username = $2, avatar_url = COALESCE($3, avatar_url), github_access_token = COALESCE($4, github_access_token)
+     WHERE id = $5 RETURNING *`,
+    [githubId, githubUsername, avatarUrl ?? null, githubAccessToken ?? null, userId]
+  );
+  return result.rows[0] as User;
+};
+
+export const updateGithubAccessToken = async (userId: string, githubAccessToken: string) => {
+  const result = await query(
+    `UPDATE users SET github_access_token = $1 WHERE id = $2 RETURNING *`,
+    [githubAccessToken, userId]
   );
   return result.rows[0] as User;
 };

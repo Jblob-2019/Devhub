@@ -57,3 +57,15 @@ export const getDeveloperProfile = async (username: string) => {
   }
   return await resp.json();
 };
+
+export const getDashboardData = async () => {
+  const resp = await fetch(`${API_BASE}/api/github/me/dashboard`, {
+    credentials: 'include',
+  });
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error('Not authenticated');
+    if (resp.status === 400) throw new Error('GitHub account not connected');
+    throw new Error('Failed to fetch dashboard data');
+  }
+  return await resp.json();
+};

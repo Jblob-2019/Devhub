@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { API_BASE } from '../lib/apiBase';
 
 export interface AuthUser {
@@ -43,14 +44,22 @@ const fetchCurrentUser = async (): Promise<AuthUser | null> => {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     const u = await fetchCurrentUser();
+    const previousUser = user;
     setUser(u);
     setLoading(false);
+
+    // Invalidate dashboard cache when user changes
+    if (previousUser?.id !== u?.id) {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
+
     return u;
-  }, []);
+  }, [user, queryClient]);
 
   // Run once on mount
   useEffect(() => {
@@ -63,6 +72,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       credentials: 'include',
     });
     setUser(null);
+    // Invalidate dashboard cache on logout
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 
   const value: AuthContextValue = {

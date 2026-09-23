@@ -24,9 +24,9 @@ export class GitHubService {
     }
   }
 
-  private async request<T>(url: string): Promise<T> {
+  private async request<T>(url: string, customHeaders?: Record<string, string>): Promise<T> {
     this.ensureConfig();
-    const resp = await fetch(url, { headers: this.headers! });
+    const resp = await fetch(url, { headers: customHeaders ?? this.headers! });
     if (!resp.ok) {
       const err = await resp.text();
       throw new Error(`GitHub API error ${resp.status}: ${err}`);
@@ -34,11 +34,11 @@ export class GitHubService {
     return (await resp.json()) as T;
   }
 
-  private async requestGraphQL<T>(query: string, variables: Record<string, any>): Promise<T> {
+  private async requestGraphQL<T>(query: string, variables: Record<string, any>, customHeaders?: Record<string, string>): Promise<T> {
     this.ensureConfig();
     const resp = await fetch('https://api.github.com/graphql', {
       method: 'POST',
-      headers: this.headers!,
+      headers: customHeaders ?? this.headers!,
       body: JSON.stringify({ query, variables }),
     });
     if (!resp.ok) {
@@ -50,6 +50,15 @@ export class GitHubService {
       throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
     }
     return result.data as T;
+  }
+
+  // Create headers with user-specific GitHub token
+  private createUserHeaders(githubToken: string): Record<string, string> {
+    return {
+      Authorization: `Bearer ${githubToken}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
   }
 
   // Search repositories by query string
@@ -157,4 +166,111 @@ export class GitHubService {
   async getRateLimit() {
     return this.request<any>('https://api.github.com/rate_limit');
   }
+
+  // ===== Authenticated user methods (using user's GitHub OAuth token) =====
+
+  // Get authenticated user's profile
+  async getAuthenticatedUser(githubToken: string) {
+    const headers = this.createUserHeaders(githubToken);
+    return this.request<any>('https://api.github.com/user', headers);
+  }
+
+  // Get authenticated user's repositories (including private)
+  async getAuthenticatedUserRepos(githubToken: string, perPage = 100, page = 1) {
+    const headers = this.createUserHeaders(githubToken);
+    const params = new URLSearchParams({
+      sort: 'updated',
+      direction: 'desc',
+      per_page: String(perPage),
+      page: String(page),
+      affiliation: 'owner,collaborator,organization_member',
+    });
+    return this.request<any[]>(`https://api.github.com/user/repos?${params.toString()}`, headers);
+  }
+
+  // Get authenticated user's contributions via GraphQL
+  async getAuthenticatedUserContributions(githubToken: string) {
+    const headers = this.createUserHeaders(githubToken);
+    const query = `
+      query {
+        viewer {
+          contributionsCollection {
+            contributionCalendar {
+              totalContributions
+              weeks {
+                contributionDays {
+                  date
+                  contributionCount
+                  color
+                }
+              }
+            }
+          }
+          repositoriesContributedTo(first: 50) {
+            totalCount
+            nodes {
+              nameWithOwner
+              stargazerCount
+              forkCount
+              primaryLanguage { name }
+            }
+          }
+        }
+      }
+    `;
+    return this.requestGraphQL<{
+      viewer: {
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: number;
+            weeks: Array<{
+              contributionDays: Array<{
+                date: string;
+                contributionCount: number;
+                color: string;
+              }>;
+            }>;
+          };
+        };
+        repositoriesContributedTo: {
+          totalCount: number;
+          nodes: Array<{
+            nameWithOwner: string;
+            stargazerCount: number;
+            forkCount: number;
+            primaryLanguage: { name: string } | null;
+          }>;
+        };
+      };
+    }>(query, {}, headers);
+  }
+
+  // Get authenticated user's gists
+  async getAuthenticatedUserGists(githubToken: string, perPage = 50) {
+    const headers = this.createUserHeaders(githubToken);
+    const params = new URLSearchParams({ per_page: String(perPage) });
+    return this.request<any[]>(`https://api.github.com/gists?${params.toString()}`, headers);
+  }
+
+  // Get authenticated user's starred repositories
+  async getAuthenticatedUserStarredRepos(githubToken: string, perPage = 50) {
+    const headers = this.createUserHeaders(githubToken);
+    const params = new URLSearchParams({ per_page: String(perPage), sort: 'created', direction: 'desc' });
+    return this.request<any[]>(`https://api.github.com/user/starred?${params.toString()}`, headers);
+  }
+
+  // Get authenticated user's following
+  async getAuthenticatedUserFollowing(githubToken: string, perPage = 50) {
+    const headers = this.createUserHeaders(githubToken);
+    const params = new URLSearchParams({ per_page: String(perPage) });
+    return this.request<any[]>(`https://api.github.com/user/following?${params.toString()}`, headers);
+  }
+
+  // Get authenticated user's organizations
+  async getAuthenticatedUserOrgs(githubToken: string) {
+    const headers = this.createUserHeaders(githubToken);
+    return this.request<any[]>('https://api.github.com/user/orgs', headers);
+  }
 }
+
+export const githubService = new GitHubService();

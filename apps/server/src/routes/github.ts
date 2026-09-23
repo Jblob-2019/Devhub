@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { GitHubService } from '../services/github.service.js';
 import { requireAuth } from '../middleware/auth.js';
+import { findUserById } from '../models/user.js';
 
 const router = Router();
 const gh = new GitHubService();
@@ -223,6 +224,180 @@ router.get('/rate_limit', async (_req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Failed to fetch rate limit' });
+  }
+});
+
+// ===== Authenticated User Dashboard endpoint =====
+// Returns comprehensive dashboard data for the currently logged-in user
+router.get('/me/dashboard', requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.id) {
+      return res.status(401).json({ error: 'Unauthenticated' });
+    }
+
+    // Fetch user from DB to get GitHub access token
+    const dbUser = await findUserById(user.id);
+    if (!dbUser || !dbUser.github_access_token) {
+      return res.status(400).json({ error: 'GitHub account not connected or token missing' });
+    }
+
+    const githubToken = dbUser.github_access_token;
+
+    // Fetch all data in parallel using user's GitHub token
+    const [
+      authUser,
+      repos,
+      contributions,
+      gists,
+      starredRepos,
+      following,
+      orgs,
+    ] = await Promise.all([
+      gh.getAuthenticatedUser(githubToken).catch(() => null),
+      gh.getAuthenticatedUserRepos(githubToken, 100).catch(() => []),
+      gh.getAuthenticatedUserContributions(githubToken).catch(() => null),
+      gh.getAuthenticatedUserGists(githubToken, 50).catch(() => []),
+      gh.getAuthenticatedUserStarredRepos(githubToken, 50).catch(() => []),
+      gh.getAuthenticatedUserFollowing(githubToken, 50).catch(() => []),
+      gh.getAuthenticatedUserOrgs(githubToken).catch(() => []),
+    ]);
+
+    if (!authUser) {
+      return res.status(401).json({ error: 'GitHub token invalid or expired' });
+    }
+
+    // Calculate stats from repos (including private)
+    const totalStars = repos.reduce((sum, r) => sum + (r.stargazers_count || 0), 0);
+    const totalForks = repos.reduce((sum, r) => sum + (r.forks_count || 0), 0);
+    const repoCount = repos.length;
+    const privateRepoCount = repos.filter(r => r.private).length;
+    const publicRepoCount = repoCount - privateRepoCount;
+
+    // Language distribution from user's repos
+    const languageStats = aggregateLanguages(repos);
+
+    // Contribution calendar
+    const contributionsData = contributions?.viewer?.contributionsCollection?.contributionCalendar
+      ? processContributionCalendar(contributions.viewer.contributionsCollection.contributionCalendar)
+      : { total: 0, weeks: [] };
+
+    // Repositories contributed to
+    const reposContributedTo = contributions?.viewer?.repositoriesContributedTo?.totalCount || 0;
+    const contributedRepos = contributions?.viewer?.repositoriesContributedTo?.nodes || [];
+
+    // Repository grid data (top repos by stars, including private)
+    const topRepos = repos
+      .sort((a, b) => (b.stargazers_count || 0) - (a.stargazers_count || 0))
+      .slice(0, 20)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        fullName: r.full_name,
+        description: r.description,
+        stars: r.stargazers_count,
+        forks: r.forks_count,
+        language: r.language,
+        topics: r.topics || [],
+        updatedAt: r.updated_at,
+        isPrivate: r.private,
+        htmlUrl: r.html_url,
+        owner: r.owner?.login,
+        ownerAvatar: r.owner?.avatar_url,
+      }));
+
+    // Recent activity from events would require a different endpoint
+    // For now, we'll use recent pushes to repos
+    const recentActivity = repos
+      .filter(r => r.pushed_at)
+      .sort((a, b) => new Date(b.pushed_at).getTime() - new Date(a.pushed_at).getTime())
+      .slice(0, 10)
+      .map(r => ({
+        type: 'PushEvent',
+        repo: r.full_name,
+        repoUrl: r.html_url,
+        createdAt: r.pushed_at,
+        payload: { ref: r.default_branch },
+      }));
+
+    // Gists
+    const gistData = gists.map(g => ({
+      id: g.id,
+      description: g.description,
+      htmlUrl: g.html_url,
+      files: Object.keys(g.files || {}),
+      public: g.public,
+      updatedAt: g.updated_at,
+    }));
+
+    // Starred repos
+    const starredData = starredRepos.map(r => ({
+      id: r.id,
+      name: r.name,
+      fullName: r.full_name,
+      description: r.description,
+      stars: r.stargazers_count,
+      language: r.language,
+      htmlUrl: r.html_url,
+    }));
+
+    // Following users
+    const followingData = following.map(u => ({
+      login: u.login,
+      avatarUrl: u.avatar_url,
+      htmlUrl: u.html_url,
+    }));
+
+    // Organizations
+    const orgsData = orgs.map(o => ({
+      login: o.login,
+      avatarUrl: o.avatar_url,
+      htmlUrl: o.html_url,
+    }));
+
+    res.json({
+      user: {
+        login: authUser.login,
+        name: authUser.name,
+        bio: authUser.bio,
+        avatarUrl: authUser.avatar_url,
+        htmlUrl: authUser.html_url,
+        followers: authUser.followers,
+        following: authUser.following,
+        publicRepos: authUser.public_repos,
+        totalRepos: repoCount,
+        location: authUser.location,
+        company: authUser.company,
+        blog: authUser.blog,
+        createdAt: authUser.created_at,
+        email: authUser.email,
+      },
+      stats: {
+        repos: repoCount,
+        publicRepos: publicRepoCount,
+        privateRepos: privateRepoCount,
+        stars: totalStars,
+        forks: totalForks,
+        followers: authUser.followers,
+        following: authUser.following,
+        contributions: contributionsData.total,
+        reposContributedTo,
+        gists: gists.length,
+        starredRepos: starredRepos.length,
+      },
+      languages: languageStats,
+      contributions: contributionsData,
+      repositories: topRepos,
+      recentActivity,
+      contributedRepos,
+      gists: gistData,
+      starredRepos: starredData,
+      following: followingData,
+      organizations: orgsData,
+    });
+  } catch (e) {
+    console.error('Dashboard fetch error:', e);
+    res.status(500).json({ error: 'Failed to fetch dashboard data' });
   }
 });
 

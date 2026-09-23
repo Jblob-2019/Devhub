@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { hashPassword, verifyPassword, signJwt, verifyJwt } from '../services/auth.js';
-import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGithubToUser } from '../models/user.js';
+import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGithubToUser, updateGithubAccessToken } from '../models/user.js';
 
 const router = Router();
 
@@ -199,7 +199,7 @@ router.get('/github/callback', async (req, res) => {
     if (!user && email) {
       const emailUser = await findUserByEmail(email);
       if (emailUser) {
-        user = await linkGithubToUser(emailUser.id, githubId, ghUser.login, ghUser.avatar_url);
+        user = await linkGithubToUser(emailUser.id, githubId, ghUser.login, ghUser.avatar_url, githubToken);
       }
     }
     if (!user) {
@@ -210,7 +210,11 @@ router.get('/github/callback', async (req, res) => {
         github_id: githubId,
         github_username: ghUser.login,
         avatar_url: ghUser.avatar_url,
+        github_access_token: githubToken,
       });
+    } else if (user && githubToken) {
+      // Update GitHub access token for existing user
+      await updateGithubAccessToken(user.id, githubToken);
     }
     const jwtToken = signJwt(user);
     res.clearCookie('oauth_state', getOauthCookieOptions());

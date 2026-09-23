@@ -1,6 +1,36 @@
 import React from 'react';
 import { getLanguageColor } from '../lib/utils';
 
+// Skeleton loading components
+export function SkeletonCard({ width = '100%', height = 100, rounded = true, className = '' }: { width?: string | number; height?: number; rounded?: boolean; className?: string }) {
+  return (
+    <div
+      className={`bg-[#21262d] animate-pulse ${rounded ? 'rounded-md' : ''} ${className}`}
+      style={{ width, height, minHeight: height }}
+    />
+  );
+}
+
+export function SkeletonGrid({ cols = 4, rows = 1, height = 80, gap = 14, className = '' }: { cols?: number; rows?: number; height?: number; gap?: number; className?: string }) {
+  const items = Array.from({ length: cols * rows }, (_, i) => i);
+  return (
+    <div className={`grid gap-${gap / 4} ${className}`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      {items.map(i => (
+        <SkeletonCard key={i} height={height} />
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonText({ width = '100%', height = 16, className = '' }: { width?: string | number; height?: number; className?: string }) {
+  return (
+    <div
+      className={`bg-[#21262d] animate-pulse rounded ${className}`}
+      style={{ width, height }}
+    />
+  );
+}
+
 // Simplified Avatar – solid background colour, no gradient logic
 export function Avatar({
   name = '',
@@ -68,7 +98,7 @@ export function VectorChart({
   className = '',
 }: {
   height?: number;
-  type?: 'bar' | 'line' | 'area';
+  type?: 'bar' | 'line' | 'area' | 'pie';
   label?: string;
   className?: string;
 }) {
@@ -229,10 +259,20 @@ export function DevSearch({ placeholder = 'Search...', value, onChange, onSubmit
   );
 }
 
-export function ContributionGrid() {
-  const weeks = 52;
-  const days = 7;
+export function ContributionGrid({ data }: { data?: { total: number; weeks: Array<{ days: Array<{ date: string; count: number; color: string }> }> } }) {
   const shades = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'];
+  const weeks = data?.weeks?.length ?? 52;
+  const days = 7;
+
+  // Determine color level from count
+  const getLevel = (count: number) => {
+    if (count === 0) return 0;
+    if (count <= 3) return 1;
+    if (count <= 6) return 2;
+    if (count <= 9) return 3;
+    return 4;
+  };
+
   return (
     <div className="w-full overflow-x-auto pb-1">
       <div className="flex gap-2">
@@ -245,14 +285,18 @@ export function ContributionGrid() {
           {Array.from({ length: weeks }, (_, w) => (
             <div key={w} className="flex flex-col gap-[3px]">
               {Array.from({ length: days }, (_, d) => {
-                const seed = (w * 7 + d * 13) % 100;
-                let level = 0;
-                if (seed > 30) level = 1;
-                if (seed > 55) level = 2;
-                if (seed > 75) level = 3;
-                if (seed > 90) level = 4;
+                const weekData = data?.weeks?.[w];
+                const dayData = weekData?.days?.[d];
+                const count = dayData?.count ?? 0;
+                const level = getLevel(count);
+                const color = dayData?.color || shades[level];
                 return (
-                  <div key={d} className="w-[10px] h-[10px] rounded-[2px]" style={{ backgroundColor: shades[level] }} title={`${level * 3 + (seed % 3)} contributions`}/>
+                  <div
+                    key={d}
+                    className="w-[10px] h-[10px] rounded-[2px]"
+                    style={{ backgroundColor: color }}
+                    title={`${count} contributions on ${dayData?.date ?? 'unknown date'}`}
+                  />
                 );
               })}
             </div>
@@ -260,7 +304,7 @@ export function ContributionGrid() {
         </div>
       </div>
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#21262d] text-[11px] text-[#6e7681] font-mono">
-        <span>Learn how we count contributions</span>
+        <span>Total: {data?.total ?? 0} contributions</span>
         <div className="flex items-center gap-1.5">
           <span>Less</span>
           {shades.map((c, i) => (
