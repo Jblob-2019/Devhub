@@ -45,21 +45,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+  const previousUserIdRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     const u = await fetchCurrentUser();
-    const previousUser = user;
-    setUser(u);
-    setLoading(false);
 
     // Invalidate dashboard cache when user changes
-    if (previousUser?.id !== u?.id) {
+    if (previousUserIdRef.current !== (u?.id ?? null)) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }
 
+    previousUserIdRef.current = u?.id ?? null;
+    setUser(u);
+    setLoading(false);
+
     return u;
-  }, [user, queryClient]);
+  }, [queryClient]);
 
   // Run once on mount
   useEffect(() => {
@@ -71,6 +73,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       method: 'POST',
       credentials: 'include',
     });
+    previousUserIdRef.current = null;
     setUser(null);
     // Invalidate dashboard cache on logout
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
