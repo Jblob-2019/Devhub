@@ -286,10 +286,3 @@ All JSON responses follow a consistent `{ data?, error? }` pattern where appropr
 6. Submit a pull request targeted at the `main` branch.
 
 ---
-
-## License
-
-This project is licensed under the **MIT License**. See the `LICENSE` file for full terms.
-
----
-
