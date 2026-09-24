@@ -7,6 +7,7 @@ import { RepositoryDetailsPage } from '../pages/RepositoryDetails';
 import { SavedItemsPage } from '../pages/SavedItems';
 import { DashboardPage } from '../pages/Dashboard';
 import { LoginPage, RegisterPage } from '../pages/Auth';
+import { AuthCallbackPage } from '../pages/AuthCallbackPage';
 
 /**
  * Wrapper that provides the legacy `onNav` prop expected by existing page components.
@@ -76,6 +77,7 @@ export default function AppRoutes() {
         } />
         <Route path="/login" element={<WithNav Component={LoginPage} />} />
         <Route path="/register" element={<WithNav Component={RegisterPage} />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
