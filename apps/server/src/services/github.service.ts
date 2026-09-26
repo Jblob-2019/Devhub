@@ -5,6 +5,20 @@
  * All requests are proxied through the backend using the server-side GITHUB_TOKEN.
  * The service returns JSON responses directly to the frontend.
  */
+
+// Custom error class with status code
+export class GitHubApiError extends Error {
+  public readonly status: number;
+  public readonly responseBody: string;
+
+  constructor(message: string, status: number, responseBody: string) {
+    super(message);
+    this.name = 'GitHubApiError';
+    this.status = status;
+    this.responseBody = responseBody;
+  }
+}
+
 export class GitHubService {
   private token: string | null = null;
   private headers: Record<string, string> | null = null;
@@ -29,7 +43,7 @@ export class GitHubService {
     const resp = await fetch(url, { headers: customHeaders ?? this.headers! });
     if (!resp.ok) {
       const err = await resp.text();
-      throw new Error(`GitHub API error ${resp.status}: ${err}`);
+      throw new GitHubApiError(`GitHub API error ${resp.status}: ${err}`, resp.status, err);
     }
     return (await resp.json()) as T;
   }
@@ -43,11 +57,11 @@ export class GitHubService {
     });
     if (!resp.ok) {
       const err = await resp.text();
-      throw new Error(`GitHub GraphQL error ${resp.status}: ${err}`);
+      throw new GitHubApiError(`GitHub GraphQL error ${resp.status}: ${err}`, resp.status, err);
     }
     const result = await resp.json();
     if (result.errors) {
-      throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+      throw new GitHubApiError(`GraphQL errors: ${JSON.stringify(result.errors)}`, 400, JSON.stringify(result.errors));
     }
     return result.data as T;
   }

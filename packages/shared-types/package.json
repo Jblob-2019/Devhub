@@ -1,0 +1,17 @@
+{
+  "name": "@devhub/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/constants.ts",
+  "exports": {
+    ".": "./src/constants.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

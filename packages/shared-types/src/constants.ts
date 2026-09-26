@@ -1,13 +1,7 @@
-export function formatNumber(num: number | string): string {
-  if (typeof num === 'string') return num;
-  if (num >= 1_000_000) {
-    return (num / 1_000_000).toFixed(1).replace(/.0$/, '') + 'M';
-  }
-  if (num >= 1_000) {
-    return (num / 1_000).toFixed(1).replace(/.0$/, '') + 'k';
-  }
-  return num.toLocaleString();
-}
+/**
+ * Shared constants for DevHub
+ * Used by both client and server for consistent language colors, etc.
+ */
 
 export const LANGUAGE_COLORS: Record<string, string> = {
   TypeScript: '#3178c6',
@@ -33,9 +27,19 @@ export const LANGUAGE_COLORS: Record<string, string> = {
 };
 
 export function getLanguageColor(language: string): string {
-  return LANGUAGE_COLORS[language] || '#8b949e';
+  return LANGUAGE_COLORS[language] ?? LANGUAGE_COLORS.Other;
 }
 
-export function classNames(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(' ');
-}
+export const CATEGORIES = [
+  'All',
+  'AI/ML',
+  'Web Development',
+  'DevTools',
+  'Mobile',
+  'Data Science',
+  'Cybersecurity',
+  'Game Development',
+  'Creative Coding',
+] as const;
+
+export type Category = typeof CATEGORIES[number];

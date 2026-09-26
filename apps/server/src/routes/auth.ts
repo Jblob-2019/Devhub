@@ -1,9 +1,42 @@
 import crypto from 'node:crypto';
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { hashPassword, verifyPassword, signJwt, verifyJwt } from '../services/auth.js';
 import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGithubToUser, updateGithubAccessToken } from '../models/user.js';
 
 const router = Router();
+
+// --- Validation Schemas ---
+const registerSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password too long'),
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type RegisterInput = z.infer<typeof registerSchema>;
+type LoginInput = z.infer<typeof loginSchema>;
+
+// Properly typed validation middleware
+const validateBody = <T extends z.ZodSchema>(schema: T) => (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const result = schema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: result.error.flatten().fieldErrors,
+    });
+  }
+  (req as any).validatedBody = result.data as z.infer<T>;
+  next();
+};
 
 const getGithubCallbackUrl = () => {
   const url = process.env.GITHUB_CALLBACK_URL;
@@ -29,21 +62,19 @@ const getCookieOptions = () => {
 
 const getOauthCookieOptions = () => {
   const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = isProd ? ('none' as const) : ('lax' as const);
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? ('none' as const) : ('lax' as const),
+    sameSite,
     path: '/',
     maxAge: 10 * 60 * 1000,
   };
 };
 
 // ---------- Email registration ----------
-router.post('/register', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Name, email and password are required' });
-  }
+router.post('/register', validateBody(registerSchema), async (req, res) => {
+  const { name, email, password } = (req as any).validatedBody as RegisterInput;
   const existing = await findUserByEmail(email);
   if (existing) {
     return res.status(409).json({ error: 'User with that email already exists' });
@@ -64,11 +95,8 @@ router.post('/register', async (req, res) => {
 });
 
 // ---------- Email login ----------
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
+router.post('/login', validateBody(loginSchema), async (req, res) => {
+  const { email, password } = (req as any).validatedBody as LoginInput;
   const user = await findUserByEmail(email);
   if (!user || !user.password_hash) {
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -150,167 +178,107 @@ router.get('/github/callback', async (req, res) => {
     const storedState = req.cookies?.oauth_state;
 
     if (!code || !state || !storedState || state !== storedState) {
-      log('oauth:state-mismatch', { hasCode: !!code, hasState: !!state, hasStoredState: !!storedState, stateMatch: state === storedState });
-      return res.status(400).send('Invalid OAuth state');
+      log('oauth:invalid_state', { state, storedState });
+      return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
     }
-    log('oauth:state-ok');
 
-    // 1. Exchange code for access token
-    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+    // Clear the state cookie
+    res.clearCookie('oauth_state', getOauthCookieOptions());
+
+    // Exchange code for access token
+    const tokenResp = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        client_id: process.env.GITHUB_CLIENT_ID!,
-        client_secret: process.env.GITHUB_CLIENT_SECRET!,
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
         redirect_uri: getGithubCallbackUrl(),
-        state,
       }),
     });
-    const tokenData = (await tokenResponse.json()) as { access_token?: string; error?: string; error_description?: string; token_type?: string; scope?: string };
-    if (!tokenData.access_token) {
-      log('oauth:token-exchange:failed', { ghStatus: tokenResponse.status, ghError: tokenData.error, ghErrorDesc: tokenData.error_description });
-      return res.status(400).send(tokenData.error_description || 'Failed to authenticate with GitHub');
+
+    const tokenData = await tokenResp.json();
+    if (!tokenResp.ok || tokenData.error) {
+      log('oauth:token_error', { error: tokenData.error, error_description: tokenData.error_description });
+      return res.redirect(`${getFrontendUrl()}/login?error=token_exchange_failed`);
     }
-    log('oauth:token-exchange:ok', { tokenType: tokenData.token_type, scope: tokenData.scope });
 
-    const githubToken = tokenData.access_token;
+    const githubAccessToken = tokenData.access_token;
 
-    // 2. Fetch GitHub user profile
+    // Fetch GitHub user info
     const userResp = await fetch('https://api.github.com/user', {
       headers: {
-        Authorization: `Bearer ${githubToken}`,
+        Authorization: `Bearer ${githubAccessToken}`,
         Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
       },
     });
-    if (!userResp.ok) {
-      log('oauth:user:failed', { ghStatus: userResp.status });
-      return res.status(400).send('Failed to fetch GitHub profile');
-    }
-    const ghUser = (await userResp.json()) as {
-      id: number;
-      login: string;
-      name?: string | null;
-      avatar_url?: string;
-      email?: string | null;
-    };
-    log('oauth:user:ok', { ghLogin: ghUser.login, ghId: ghUser.id, hasEmail: !!ghUser.email });
 
-    // 3. Fetch email if not provided
-    let email = ghUser.email;
-    if (!email) {
-      const emailResp = await fetch('https://api.github.com/user/emails', {
+    if (!userResp.ok) {
+      log('oauth:user_fetch_failed', { status: userResp.status });
+      return res.redirect(`${getFrontendUrl()}/login?error=user_fetch_failed`);
+    }
+
+    const githubUser = await userResp.json();
+
+    // Fetch user email if not public
+    let githubEmail = githubUser.email;
+    if (!githubEmail) {
+      const emailsResp = await fetch('https://api.github.com/user/emails', {
         headers: {
-          Authorization: `Bearer ${githubToken}`,
+          Authorization: `Bearer ${githubAccessToken}`,
           Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
         },
       });
-      if (emailResp.ok) {
-        const emails = (await emailResp.json()) as Array<{ email: string; primary: boolean; verified: boolean }>;
-        const primary = emails.find(e => e.primary && e.verified);
-        email = primary?.email ?? emails.find(e => e.verified)?.email ?? null;
-        log('oauth:email:ok', { emailFound: !!email, emailCount: emails.length });
+      if (emailsResp.ok) {
+        const emails = await emailsResp.json();
+        const primary = emails.find((e: any) => e.primary && e.verified);
+        githubEmail = primary?.email ?? emails[0]?.email;
+      }
+    }
+
+    if (!githubEmail) {
+      log('oauth:no_email', { githubId: githubUser.id });
+      return res.redirect(`${getFrontendUrl()}/login?error=no_email`);
+    }
+
+    // Find or create user
+    let user = await findUserByEmail(githubEmail);
+    if (!user) {
+      user = await findUserByGithubId(String(githubUser.id));
+    }
+
+    if (user) {
+      // Link GitHub account if not already linked
+      if (!user.github_id) {
+        user = await linkGithubToUser(user.id, String(githubUser.id), githubUser.login, githubUser.avatar_url, githubAccessToken);
       } else {
-        log('oauth:email:failed', { ghStatus: emailResp.status });
+        // Update access token
+        user = await updateGithubAccessToken(user.id, githubAccessToken);
       }
     } else {
-      log('oauth:email:ok', { source: 'user-profile' });
-    }
-
-    // 4. Find or create user
-    const githubId = String(ghUser.id);
-    log('oauth:db-find-by-github-id:start', { githubId });
-
-    let user = await findUserByGithubId(githubId);
-    log('oauth:db-find-by-github-id:ok', { userFound: !!user, userId: user?.id });
-
-    if (!user && email) {
-      log('oauth:db-find-by-email:start', { email });
-      const emailUser = await findUserByEmail(email);
-      log('oauth:db-find-by-email:ok', { userFound: !!emailUser, userId: emailUser?.id });
-
-      if (emailUser) {
-        log('oauth:db-link:start', { userId: emailUser.id });
-        user = await linkGithubToUser(emailUser.id, githubId, ghUser.login, ghUser.avatar_url, githubToken);
-        log('oauth:db-link:ok', { userId: user?.id });
-      }
-    }
-
-    if (!user) {
-      log('oauth:db-create:start', { email: email ?? `${ghUser.login}@github.local`, username: ghUser.login });
+      // Create new user
       user = await createUser({
-        email: email ?? `${ghUser.login}@github.local`,
-        name: ghUser.name ?? ghUser.login,
-        username: ghUser.login,
-        github_id: githubId,
-        github_username: ghUser.login,
-        avatar_url: ghUser.avatar_url,
-        github_access_token: githubToken,
+        email: githubEmail,
+        name: githubUser.name ?? githubUser.login,
+        username: githubUser.login,
+        avatar_url: githubUser.avatar_url,
+        github_id: String(githubUser.id),
+        github_username: githubUser.login,
+        github_access_token: githubAccessToken,
       });
-      log('oauth:db-create:ok', { userId: user?.id });
-    } else if (user && githubToken) {
-      // Update GitHub access token for existing user
-      log('oauth:db-token-update:start', { userId: user.id });
-      await updateGithubAccessToken(user.id, githubToken);
-      log('oauth:db-token-update:ok', { userId: user.id });
     }
 
-    // 5. Sign JWT
-    log('oauth:jwt:start', { userId: user.id });
-    const jwtToken = signJwt(user);
-    log('oauth:jwt:ok');
+    const token = signJwt(user);
+    res
+      .cookie('session', token, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 })
+      .redirect(getFrontendUrl());
 
-    // 6. Set session cookie and redirect
-    log('oauth:session-cookie:set', { hasCookieOptions: true });
-    res.clearCookie('oauth_state', getOauthCookieOptions());
-    res.cookie('session', jwtToken, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 });
-
-    const redirectUrl = `${getFrontendUrl()}/auth/callback`;
-    log('oauth:redirect', { redirectUrl, totalMs: Date.now() - startTime });
-    res.redirect(redirectUrl);
-  } catch (error: any) {
-    // Safe error logging - never log secrets
-    const safeError = {
-      name: error?.name,
-      message: error?.message,
-      code: error?.code,
-      status: error?.status,
-      // Include PostgreSQL error code if available (e.g., 42703 = undefined_column)
-      pgCode: error?.code,
-      stack: process.env.NODE_ENV !== 'production' ? error?.stack : undefined,
-    };
-    log('oauth:error', { ...safeError, totalMs: Date.now() - startTime });
-
-    // Determine user-facing message based on error type
-    let userMessage = 'GitHub authentication failed';
-    const isProd = process.env.NODE_ENV === 'production';
-
-    // Network errors
-    if (error?.code === 'ECONNREFUSED' || error?.code === 'ENOTFOUND' || error?.message?.includes('fetch failed')) {
-      userMessage = 'Unable to reach GitHub. Please try again.';
-    }
-    // Database schema errors - missing column (PostgreSQL error code 42703 = undefined_column)
-    else if (error?.code === '42703' || error?.message?.includes('column "github_access_token"') || error?.message?.includes('github_access_token') || error?.message?.includes('DATABASE_URL') || error?.message?.includes('relation')) {
-      userMessage = 'Database schema outdated. Please contact support to run migrations.';
-    }
-    // JWT configuration errors
-    else if (error?.message?.includes('JWT_SECRET')) {
-      userMessage = 'Server configuration error. Please contact support.';
-    }
-    // GitHub OAuth specific errors
-    else if (error?.message?.includes('bad_verification_code') || error?.message?.includes('invalid_grant')) {
-      userMessage = 'GitHub authorization code expired or invalid. Please try logging in again.';
-    }
-
-    if (!isProd) {
-      return res.status(500).json({ error: userMessage, debug: safeError });
-    }
-    res.status(500).send(userMessage);
+  } catch (err: any) {
+    log('oauth:exception', { error: err?.message ?? String(err) });
+    return res.redirect(`${getFrontendUrl()}/login?error=server_error`);
   }
 });
 
