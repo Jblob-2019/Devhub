@@ -9,10 +9,9 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": "src",
-    "baseUrl": ".",
     "paths": {
-      "@devhub/shared": [
-        "../../packages/shared-types/src"
+      "@/*": [
+        "./src/*"
       ]
     }
   },
