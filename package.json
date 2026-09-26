@@ -1,0 +1,13 @@
+{
+  "name": "devhub-root",
+  "private": true,
+  "workspaces": [
+    "my-app",
+    "my-app/apps/*",
+    "my-app/packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace my-app",
+    "start": "npm run start --workspace my-app"
+  }
+}
