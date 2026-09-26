@@ -28,6 +28,7 @@
     "@types/jsonwebtoken": "^9.0.10"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "ts-node": "^10.9.1",
     "tsx": "^4.23.15",
     "typescript": "^5.2.2"

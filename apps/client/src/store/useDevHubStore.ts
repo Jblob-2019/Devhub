@@ -34,7 +34,7 @@ export function useDevHubStore() {
   useEffect(() => {
     let cancelled = false;
     fetchFavorites().then(favs => {
-      if (!cancelled) setState(prev => ({ ...prev, ...favs }));
+      if (!cancelled) setState((prev: SavedState) => ({ ...prev, ...favs }));
     });
     return () => { cancelled = true; };
   }, []);
@@ -56,9 +56,9 @@ export function useDevHubStore() {
         body: JSON.stringify({ type: 'repository', target: repoName }),
       });
     }
-    setState(prev => ({
+    setState((prev: SavedState) => ({
       ...prev,
-      savedRepos: exists ? prev.savedRepos.filter(r => r !== repoName) : [...prev.savedRepos, repoName],
+      savedRepos: exists ? prev.savedRepos.filter((r: string) => r !== repoName) : [...prev.savedRepos, repoName],
     }));
   }, [state.savedRepos]);
 
@@ -77,26 +77,26 @@ export function useDevHubStore() {
         body: JSON.stringify({ type: 'developer', target: devHandle }),
       });
     }
-    setState(prev => ({
+    setState((prev: SavedState) => ({
       ...prev,
-      savedDevs: exists ? prev.savedDevs.filter(d => d !== devHandle) : [...prev.savedDevs, devHandle],
+      savedDevs: exists ? prev.savedDevs.filter((d: string) => d !== devHandle) : [...prev.savedDevs, devHandle],
     }));
   }, [state.savedDevs]);
 
   const toggleFollowDev = useCallback((devHandle: string) => {
-    setState(prev => {
+    setState((prev: SavedState) => {
       const exists = prev.followingDevs.includes(devHandle);
       return {
         ...prev,
-        followingDevs: exists ? prev.followingDevs.filter(d => d !== devHandle) : [...prev.followingDevs, devHandle],
+        followingDevs: exists ? prev.followingDevs.filter((d: string) => d !== devHandle) : [...prev.followingDevs, devHandle],
       };
     });
   }, []);
 
   const addRecent = useCallback((item: { type: 'repo' | 'dev'; id: string; name: string }) => {
-    setState(prev => ({
+    setState((prev: SavedState) => ({
       ...prev,
-      recentlyViewed: [{ ...item, time: 'Just now' }, ...prev.recentlyViewed.filter(r => r.id !== item.id)].slice(0, 10),
+      recentlyViewed: [{ ...item, time: 'Just now' }, ...prev.recentlyViewed.filter((r: { type: 'repo' | 'dev'; id: string; name: string; time: string }) => r.id !== item.id)].slice(0, 10),
     }));
   }, []);
 
