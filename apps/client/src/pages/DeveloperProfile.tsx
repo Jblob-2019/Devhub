@@ -55,21 +55,31 @@ function getActivityIcon(type: string): string {
 function getActivityText(item: DeveloperProfileData['activity'][0]): string {
   const { type, repo, payload } = item;
   switch (type) {
-    case 'PushEvent':
+    case 'PushEvent': {
       const commits = payload?.commits?.length || 0;
       return `Pushed ${commits} commit${commits !== 1 ? 's' : ''} to ${repo}`;
-    case 'CreateEvent':
-      return `Created ${payload?.ref_type} ${payload?.ref} in ${repo}`;
-    case 'IssuesEvent':
-      return `${payload?.action?.charAt(0).toUpperCase() + payload?.action?.slice(1)} issue in ${repo}`;
-    case 'PullRequestEvent':
-      return `${payload?.action?.charAt(0).toUpperCase() + payload?.action?.slice(1)} PR in ${repo}`;
+    }
+    case 'CreateEvent': {
+      const refType = payload?.ref_type || 'branch';
+      const ref = payload?.ref ? ` ${payload.ref}` : '';
+      return `Created ${refType}${ref} in ${repo}`;
+    }
+    case 'IssuesEvent': {
+      const action = payload?.action ? payload.action.charAt(0).toUpperCase() + payload.action.slice(1) : 'Updated';
+      return `${action} issue in ${repo}`;
+    }
+    case 'PullRequestEvent': {
+      const action = payload?.action ? payload.action.charAt(0).toUpperCase() + payload.action.slice(1) : 'Updated';
+      return `${action} PR in ${repo}`;
+    }
     case 'WatchEvent':
       return `Starred ${repo}`;
     case 'ForkEvent':
       return `Forked ${repo}`;
-    case 'ReleaseEvent':
-      return `Released ${payload?.release?.tag_name} in ${repo}`;
+    case 'ReleaseEvent': {
+      const tag = payload?.release?.tag_name ? ` ${payload.release.tag_name}` : '';
+      return `Released${tag} in ${repo}`;
+    }
     default:
       return `${type} in ${repo}`;
   }

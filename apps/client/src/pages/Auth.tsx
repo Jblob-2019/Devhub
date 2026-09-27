@@ -111,16 +111,9 @@ export function AuthPage({ onNav, initialMode = 'login' }: {
                 required
               />
 
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="text-xs font-semibold text-[#c9d1d9]">
-                  Password
-                </label>
-                {mode === 'login' && (
-                  <span className="text-[11px] text-[#2f81f7] hover:underline cursor-pointer">
-                    Forgot password?
-                  </span>
-                )}
-              </div>
+              <label className="block text-xs font-semibold text-[#c9d1d9] mb-1.5">
+                Password
+              </label>
               <input
                 type="password"
                 className="dev-input"
@@ -153,31 +146,29 @@ export function AuthPage({ onNav, initialMode = 'login' }: {
               </button>
             </form>
 
-            {error && (
-              <div className="mt-5 pt-4 border-t border-[#30363d] text-center text-xs text-[#8b949e]">
-                {mode === 'login' ? (
-                  <span>
-                    New to DevHub?{' '}
-                    <button
-                      onClick={() => setMode('register')}
-                      className="text-[#2f81f7] font-semibold hover:underline"
-                    >
-                      Create an account
-                    </button>
-                  </span>
-                ) : (
-                  <span>
-                    Already have an account?{' '}
-                    <button
-                      onClick={() => setMode('login')}
-                      className="text-[#2f81f7] font-semibold hover:underline"
-                    >
-                      Sign in
-                    </button>
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="mt-5 pt-4 border-t border-[#30363d] text-center text-xs text-[#8b949e]">
+              {mode === 'login' ? (
+                <span>
+                  New to DevHub?{' '}
+                  <button
+                    onClick={() => { setError(null); setMode('register'); }}
+                    className="text-[#2f81f7] font-semibold hover:underline"
+                  >
+                    Create an account
+                  </button>
+                </span>
+              ) : (
+                <span>
+                  Already have an account?{' '}
+                  <button
+                    onClick={() => { setError(null); setMode('login'); }}
+                    className="text-[#2f81f7] font-semibold hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

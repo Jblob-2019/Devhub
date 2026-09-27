@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Page } from '../types';
 import {
   Avatar,
-  VectorChart,
   DevTabs,
   MetricCard,
   ContributionGrid,
@@ -18,6 +17,7 @@ import {
   EmptyState,
 } from '../components/DevComponents';
 import { getDashboardData } from '../services/githubApi';
+import { githubLogin } from '../services/authService';
 import { useDevHubStore } from '../store/useDevHubStore';
 import type { DashboardData, DashboardRepository, DashboardLanguage, DashboardContributions, DashboardOrganization, DashboardActivityItem, DashboardGist, DashboardStarredRepo } from '../types';
 
@@ -97,13 +97,13 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
           subtitle={isAuthError
             ? 'Please sign in to view your personalized dashboard.'
             : isTokenError
-            ? 'Your GitHub account is not connected. Go to settings to link your account.'
+            ? 'Your GitHub account is not connected. Connect your GitHub account to access your developer workspace.'
             : 'We couldn\'t load your dashboard data. Please try again.'}
           action={isAuthError ? 'Sign In' : isTokenError ? 'Connect GitHub' : 'Retry'}
           onAction={isAuthError
             ? () => navigate('/login', { replace: true })
             : isTokenError
-            ? () => navigate('/settings', { replace: true })
+            ? () => { githubLogin(); }
             : handleRetry}
         />
       </div>
@@ -170,12 +170,15 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => (onNav ?? fallbackNav)('/developer')}
+            onClick={() => navigate(username ? `/developer?username=${encodeURIComponent(username)}` : '/explore')}
             className="dev-btn dev-btn-secondary text-xs"
           >
             Public Profile
           </button>
-          <button className="dev-btn dev-btn-primary text-xs gap-1.5">
+          <button
+            onClick={() => window.open('https://github.com/new', '_blank', 'noopener,noreferrer')}
+            className="dev-btn dev-btn-primary text-xs gap-1.5"
+          >
             <span>+</span>
             <span>New Repository</span>
           </button>
@@ -190,7 +193,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
 
       {/* Tabs */}
       <DevTabs
-        tabs={['Overview', 'Repositories', 'Activity', 'Gists', 'Starred', 'Analytics']}
+        tabs={['Overview', 'Repositories', 'Activity', 'Gists', 'Starred']}
         active={tab}
         onChange={setTab}
         className="mb-6"
@@ -203,7 +206,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
             <MetricCard
               label="Total Stars Received"
               value={formatNumber(stats.stars)}
-              sublabel={`Across ${stats.repos} repositories`}
+              sublabel={stats.repos >= 100 ? 'Across first 100 repositories' : `Across ${stats.repos} repositories`}
               trend="up"
             />
             <MetricCard
@@ -234,7 +237,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
                     Annual Contribution Heatmap
                   </span>
                   <span className="text-xs font-mono text-[#3fb950]">
-                    {formatNumber(contributions.total)} contributions in {new Date().getFullYear()}
+                    {formatNumber(contributions.total)} contributions in the last year
                   </span>
                 </div>
                 {contributions.total > 0 ? (
@@ -242,7 +245,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
                 ) : (
                   <div className="py-12 text-center">
                     <div className="text-3xl mb-2">📅</div>
-                    <p className="text-sm text-[#8b949e]">No contributions yet this year</p>
+                    <p className="text-sm text-[#8b949e]">No contributions in the last year</p>
                     <p className="text-xs text-[#6e7681] mt-1">Start coding to fill your heatmap!</p>
                   </div>
                 )}
@@ -299,7 +302,10 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
                   <div className="py-8 text-center">
                     <div className="text-3xl mb-2">📦</div>
                     <p className="text-sm text-[#8b949e]">No repositories yet</p>
-                    <button className="dev-btn dev-btn-primary text-xs mt-2">
+                    <button
+                      onClick={() => window.open('https://github.com/new', '_blank', 'noopener,noreferrer')}
+                      className="dev-btn dev-btn-primary text-xs mt-2"
+                    >
                       <span>+</span> Create your first repository
                     </button>
                   </div>
@@ -452,7 +458,7 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
               title="No repositories found"
               subtitle="You don't have any repositories yet. Create one to get started!"
               action="Create Repository"
-              onAction={() => { /* TODO: navigate to create repo */ }}
+              onAction={() => window.open('https://github.com/new', '_blank', 'noopener,noreferrer')}
             />
           )}
         </div>
@@ -567,39 +573,6 @@ export function DashboardPage({ onNav }: { onNav?: (page: Page) => void }) {
           ) : (
             <EmptyState title="No starred repositories" subtitle="Star repositories on GitHub to see them here." />
           )}
-        </div>
-      )}
-
-      {tab === 'Analytics' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="dev-card p-4">
-            <span className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider block mb-3">
-              Weekly Repository Views
-            </span>
-            <VectorChart height={160} type="area" label="views / day" />
-            <p className="text-xs text-[#8b949e] mt-2">Traffic data requires GitHub API access</p>
-          </div>
-          <div className="dev-card p-4">
-            <span className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider block mb-3">
-              Stargazers Growth
-            </span>
-            <VectorChart height={160} type="bar" label="new stars / week" />
-            <p className="text-xs text-[#8b949e] mt-2">Growth data requires GitHub API access</p>
-          </div>
-          <div className="dev-card p-4">
-            <span className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider block mb-3">
-              Language Distribution
-            </span>
-            <VectorChart height={160} type="pie" label="languages" />
-            <p className="text-xs text-[#8b949e] mt-2">Based on your repositories</p>
-          </div>
-          <div className="dev-card p-4">
-            <span className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider block mb-3">
-              Contribution Streak
-            </span>
-            <VectorChart height={160} type="line" label="days" />
-            <p className="text-xs text-[#8b949e] mt-2">Calculated from your contribution calendar</p>
-          </div>
         </div>
       )}
     </div>

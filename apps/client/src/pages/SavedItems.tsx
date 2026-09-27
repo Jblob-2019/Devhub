@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Repository, Developer } from '../types';
 import { getFullRepository, getUser } from '../services/githubApi';
 import {
@@ -12,17 +13,16 @@ import {
   EmptyState,
   SidebarSection,
 } from '../components/DevComponents';
-// Removed static mock imports – saved items now rely on backend favorites
-// import { TRENDING_REPOSITORIES, TOP_DEVELOPERS } from '../services/githubService';
 import { useDevHubStore } from '../store/useDevHubStore';
-import { useNavigate } from 'react-router-dom';
 
 export function SavedItemsPage() {
   const navigate = useNavigate();
-  const onNav = (page: string) => navigate(page);
 
   const [tab, setTab] = useState('Repositories');
   const [query, setQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [savedRepoList, setSavedRepoList] = useState<Repository[]>([]);
+  const [savedDevList, setSavedDevList] = useState<Developer[]>([]);
 
   const {
     savedRepos,
@@ -35,32 +35,112 @@ export function SavedItemsPage() {
     addRecent,
   } = useDevHubStore();
 
-  // Load repo and developer details for saved items
+  // Load repo and developer details for saved items with Promise.allSettled error resilience
   useEffect(() => {
+    let isCancelled = false;
+
     async function load() {
-      const repos = await Promise.all(savedRepos.map(fullName => {
-        const [owner, repo] = fullName.split('/');
-        return getFullRepository(owner, repo);
-      }));
-      setSavedRepoList(repos);
-      const devs = await Promise.all(savedDevs.map(username => getUser(username)));
-      setSavedDevList(devs);
+      setIsLoading(true);
+      try {
+        const repoResults = await Promise.allSettled(
+          savedRepos.map(async (fullName) => {
+            const [owner, repo] = fullName.split('/');
+            if (!owner || !repo) return null;
+            const data = await getFullRepository(owner, repo);
+            const r = data.repo;
+            if (!r) return null;
+            const repoObj: Repository = {
+              id: String(r.id),
+              name: r.name,
+              owner: r.owner?.login || owner,
+              fullName: r.full_name || fullName,
+              description: r.description || '',
+              stars: r.stargazers_count ?? 0,
+              forks: r.forks_count ?? 0,
+              watchers: r.watchers_count ?? 0,
+              openIssues: r.open_issues_count ?? 0,
+              language: r.language || '',
+              topics: r.topics || [],
+              updatedAt: r.updated_at || '',
+            };
+            return repoObj;
+          })
+        );
+
+        if (!isCancelled) {
+          const repos = repoResults
+            .filter((res): res is PromiseFulfilledResult<Repository | null> => res.status === 'fulfilled' && res.value !== null)
+            .map(res => res.value as Repository);
+          setSavedRepoList(repos);
+        }
+
+        const devResults = await Promise.allSettled(
+          savedDevs.map(async (username) => {
+            if (!username) return null;
+            const u = await getUser(username);
+            if (!u) return null;
+            const devObj: Developer = {
+              id: String(u.id),
+              name: u.name || u.login || username,
+              username: u.login || username,
+              bio: u.bio || '',
+              avatarUrl: u.avatar_url,
+              reposCount: u.public_repos ?? 0,
+              followers: u.followers ?? 0,
+              following: u.following ?? 0,
+              primaryLanguage: '',
+              location: u.location || '',
+              company: u.company || '',
+              blog: u.blog || '',
+            };
+            return devObj;
+          })
+        );
+
+        if (!isCancelled) {
+          const devs = devResults
+            .filter((res): res is PromiseFulfilledResult<Developer | null> => res.status === 'fulfilled' && res.value !== null)
+            .map(res => res.value as Developer);
+          setSavedDevList(devs);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
     }
+
     load();
+    return () => {
+      isCancelled = true;
+    };
   }, [savedRepos, savedDevs]);
 
-  const [savedRepoList, setSavedRepoList] = useState<Repository[]>([]);
-  const [savedDevList, setSavedDevList] = useState<Developer[]>([]);
+  const filteredRepos = useMemo(() => {
+    if (!query.trim()) return savedRepoList;
+    const q = query.toLowerCase();
+    return savedRepoList.filter(
+      r => r.name.toLowerCase().includes(q) || r.owner.toLowerCase().includes(q) || r.description.toLowerCase().includes(q)
+    );
+  }, [savedRepoList, query]);
+
+  const filteredDevs = useMemo(() => {
+    if (!query.trim()) return savedDevList;
+    const q = query.toLowerCase();
+    return savedDevList.filter(
+      d => d.username.toLowerCase().includes(q) || d.name.toLowerCase().includes(q) || d.bio.toLowerCase().includes(q)
+    );
+  }, [savedDevList, query]);
 
   const handleRepoClick = (fullName: string) => {
     addRecent({ type: 'repo', id: fullName, name: fullName });
     const [owner, repo] = fullName.split('/');
-    onNav(`/repository?owner=${owner}&repo=${repo}`);
+    navigate(`/repository?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`);
   };
 
   const handleDevClick = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    onNav(`/developer?username=${username}`);
+    navigate(`/developer?username=${encodeURIComponent(username)}`);
   };
 
   return (
@@ -69,10 +149,10 @@ export function SavedItemsPage() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[#f0f6fc]">
-            Saved Bookmarks &amp; Collections
+            Saved Bookmarks
           </h1>
           <p className="text-xs text-[#8b949e] mt-0.5">
-            Manage your curated repositories, tracked developers, and project collections
+            Manage your curated repositories and tracked developers
           </p>
         </div>
         <span className="text-xs font-mono px-2 py-0.5 rounded border border-[#30363d] bg-[#161b22] text-[#2f81f7]">
@@ -91,29 +171,42 @@ export function SavedItemsPage() {
               className="flex-1 max-w-sm"
             />
             <DevTabs
-              tabs={['Repositories', 'Developers', 'Collections']}
+              tabs={['Repositories', 'Developers']}
               active={tab}
               onChange={setTab}
               counts={{
-                Repositories: savedRepoList.length,
-                Developers: savedDevList.length,
-                Collections: 3,
+                Repositories: filteredRepos.length,
+                Developers: filteredDevs.length,
               }}
             />
           </div>
 
-          {/* Repositories Tab */}
-          {tab === 'Repositories' && (
+          {isLoading ? (
             <div className="space-y-3">
-              {savedRepoList.length === 0 ? (
+              {[1, 2, 3].map(i => (
+                <div key={i} className="dev-card p-4 animate-pulse flex items-start gap-3.5">
+                  <div className="w-9 h-9 rounded bg-[#21262d]" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-1/3 bg-[#21262d] rounded" />
+                    <div className="h-3 w-2/3 bg-[#21262d] rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Repositories Tab */}
+          {!isLoading && tab === 'Repositories' && (
+            <div className="space-y-3">
+              {filteredRepos.length === 0 ? (
                 <EmptyState
                   title="No saved repositories found"
                   subtitle={query ? 'Try a different search filter' : 'Explore repositories and click the bookmark button to save them.'}
                   action="Explore Repositories"
-                  onAction={() => onNav('explore')}
+                  onAction={() => navigate('/explore')}
                 />
               ) : (
-                savedRepoList.map(repo => (
+                filteredRepos.map(repo => (
                   <div
                     key={repo.id}
                     className="dev-card dev-card-interactive p-4 flex items-start gap-3.5 cursor-pointer"
@@ -124,7 +217,7 @@ export function SavedItemsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <span className="font-semibold text-sm text-[#f0f6fc] hover:text-[#2f81f7] font-mono">
-                            {`${repo.owner}/${repo.name}` }
+                            {`${repo.owner}/${repo.name}`}
                           </span>
                           <p className="text-xs text-[#8b949e] mt-1 mb-2">
                             {repo.description}
@@ -138,7 +231,7 @@ export function SavedItemsPage() {
                       <div className="flex items-center gap-4 flex-wrap">
                         <StarCount count={repo.stars} />
                         <ForkCount count={repo.forks} />
-                        <LanguageDot lang={repo.language} />
+                        {repo.language && <LanguageDot lang={repo.language} />}
                         <span className="text-[11px] text-[#6e7681] font-mono ml-auto">
                           Saved to favorites
                         </span>
@@ -151,17 +244,17 @@ export function SavedItemsPage() {
           )}
 
           {/* Developers Tab */}
-          {tab === 'Developers' && (
+          {!isLoading && tab === 'Developers' && (
             <div className="space-y-3">
-              {savedDevList.length === 0 ? (
+              {filteredDevs.length === 0 ? (
                 <EmptyState
                   title="No saved developers found"
-                  subtitle="Discover top open source engineers and save them to your watchlist."
+                  subtitle={query ? 'Try a different search filter' : 'Discover top open source engineers and save them to your watchlist.'}
                   action="Discover Developers"
-                  onAction={() => onNav('explore')}
+                  onAction={() => navigate('/explore')}
                 />
               ) : (
-                savedDevList.map(dev => {
+                filteredDevs.map(dev => {
                   const isFollowing = followingDevs.includes(dev.username);
                   return (
                     <div
@@ -170,7 +263,7 @@ export function SavedItemsPage() {
                       onClick={() => handleDevClick(dev.username)}
                     >
                       <div className="flex items-center gap-3.5">
-                        <Avatar name={dev.name} size={42} rounded={true} />
+                        <Avatar name={dev.name} src={dev.avatarUrl} size={42} rounded={true} />
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-sm text-[#f0f6fc]">
@@ -180,13 +273,15 @@ export function SavedItemsPage() {
                               @{dev.username}
                             </span>
                           </div>
-                          <p className="text-xs text-[#8b949e] mt-0.5 line-clamp-1">
-                            {dev.bio}
-                          </p>
+                          {dev.bio && (
+                            <p className="text-xs text-[#8b949e] mt-0.5 line-clamp-1">
+                              {dev.bio}
+                            </p>
+                          )}
                           <div className="flex items-center gap-3 text-[11px] font-mono text-[#6e7681] mt-1">
                             <span>{dev.followers} followers</span>
                             <span>{dev.reposCount} repos</span>
-                            <LanguageDot lang={dev.primaryLanguage} />
+                            {dev.primaryLanguage && <LanguageDot lang={dev.primaryLanguage} />}
                           </div>
                         </div>
                       </div>
@@ -214,68 +309,41 @@ export function SavedItemsPage() {
               )}
             </div>
           )}
-
-          {/* Collections Tab */}
-          {tab === 'Collections' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                { name: 'Core Frameworks', desc: 'React, Next.js, Vite & Vue tools', count: 4, icon: '⚡' },
-                { name: 'Systems & Low-Level', desc: 'Linux kernel, Rust & Deno runtimes', count: 3, icon: '🦀' },
-                { name: 'AI & Machine Learning', desc: 'Whisper transformer models and LLM tooling', count: 2, icon: '🧠' },
-              ].map(col => (
-                <div
-                  key={col.name}
-                  className="dev-card dev-card-interactive p-4 flex flex-col justify-between cursor-pointer"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xl">{col.icon}</span>
-                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#21262d] text-[#8b949e] border border-[#30363d]">
-                        {col.count} items
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-sm text-[#f0f6fc] mb-1">{col.name}</h3>
-                    <p className="text-xs text-[#8b949e]">{col.desc}</p>
-                  </div>
-                  <div className="mt-4 pt-2 border-t border-[#30363d]/50 flex justify-between text-xs text-[#2f81f7]">
-                    <span>View collection →</span>
-                    <span className="text-[#6e7681] font-mono">Updated today</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Right Sidebar: Quick Collections and Recently Viewed */}
+        {/* Right Sidebar: Recently Viewed */}
         <div className="space-y-5">
           <SidebarSection title="Recently Viewed">
-            <div className="space-y-2">
-              {recentlyViewed.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => {
+            {recentlyViewed.length === 0 ? (
+              <p className="text-xs text-[#8b949e]">No recently viewed items</p>
+            ) : (
+              <div className="space-y-2">
+                {recentlyViewed.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
                       if (item.type === 'repo') {
                         const [owner, repo] = item.name.split('/');
-                        onNav(`/repository?owner=${owner}&repo=${repo}`);
+                        navigate(`/repository?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`);
                       } else {
-                        onNav(`/developer?username=${item.name}`);
+                        navigate(`/developer?username=${encodeURIComponent(item.name)}`);
                       }
                     }}
-                  className="w-full flex items-center justify-between p-2 rounded-md hover:bg-[#21262d] text-left transition-colors group"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar name={item.name} size={22} rounded={item.type === 'dev'} />
-                    <span className="text-xs font-mono text-[#c9d1d9] group-hover:text-[#2f81f7] truncate">
-                      {item.name}
+                    className="w-full flex items-center justify-between p-2 rounded-md hover:bg-[#21262d] text-left transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar name={item.name} size={22} rounded={item.type === 'dev'} />
+                      <span className="text-xs font-mono text-[#c9d1d9] group-hover:text-[#2f81f7] truncate">
+                        {item.name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-[#6e7681] flex-shrink-0">
+                      {item.time}
                     </span>
-                  </div>
-                  <span className="text-[10px] font-mono text-[#6e7681] flex-shrink-0">
-                    {item.time}
-                  </span>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </SidebarSection>
         </div>
       </div>

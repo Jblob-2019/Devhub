@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Avatar,
-  VectorChart,
   SaveButton,
   DevTabs,
   MetricCard,
@@ -18,8 +17,6 @@ export function RepositoryDetailsPage() {
   const navigate = useNavigate();
   const { savedRepos, toggleSaveRepo } = useDevHubStore();
   const [tab, setTab] = useState('Overview');
-  const [starred, setStarred] = useState(false);
-  const [watched, setWatched] = useState(false);
   const [searchParams] = useSearchParams();
   const owner = searchParams.get('owner') ?? '';
   const repo = searchParams.get('repo') ?? '';
@@ -161,44 +158,46 @@ export function RepositoryDetailsPage() {
           {/* Action Buttons Toolbar */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => setWatched(!watched)}
-              className={`dev-btn dev-btn-secondary text-xs gap-1.5 ${
-                watched ? 'border-[#2f81f7] text-[#2f81f7]' : ''
-              }`}
+              onClick={() => window.open(repoInfo?.html_url ? `${repoInfo.html_url}/watchers` : `https://github.com/${owner}/${repo}/watchers`, '_blank', 'noopener,noreferrer')}
+              className="dev-btn dev-btn-secondary text-xs gap-1.5"
+              title="Watch on GitHub"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <circle cx="8" cy="8" r="2.5" />
                 <path d="M1.5 8C3 4 5.2 2 8 2s5 2 6.5 6c-1.5 4-3.7 6-6.5 6s-5-2-6.5-6z" />
               </svg>
-              <span>{watched ? 'Watching' : 'Watch'}</span>
+              <span>Watch</span>
               <span className="text-[10px] font-mono opacity-80">
                 {repoInfo?.subscribers_count?.toLocaleString() ?? repoInfo?.watchers_count?.toLocaleString() ?? '—'}
               </span>
             </button>
 
             <button
-              onClick={() => setStarred(!starred)}
-              className={`dev-btn text-xs gap-1.5 ${
-                starred ? 'dev-btn-primary' : 'dev-btn-secondary'
-              }`}
+              onClick={() => window.open(repoInfo?.html_url || `https://github.com/${owner}/${repo}`, '_blank', 'noopener,noreferrer')}
+              className="dev-btn dev-btn-secondary text-xs gap-1.5"
+              title="Star on GitHub"
             >
               <svg
                 width="13"
                 height="13"
                 viewBox="0 0 16 16"
-                fill={starred ? 'currentColor' : 'none'}
+                fill="none"
                 stroke="currentColor"
                 strokeWidth="1.6"
               >
                 <polygon points="8,2 10,6 14.5,6.5 11,10 12,14.5 8,12 4,14.5 5,10 1.5,6.5 6,6" />
               </svg>
-              <span>{starred ? 'Starred' : 'Star'}</span>
+              <span>Star</span>
               <span className="text-[10px] font-mono opacity-80">
                 {repoInfo?.stargazers_count?.toLocaleString() ?? '—'}
               </span>
             </button>
 
-            <button className="dev-btn dev-btn-secondary text-xs gap-1.5">
+            <button
+              onClick={() => window.open(repoInfo?.html_url ? `${repoInfo.html_url}/fork` : `https://github.com/${owner}/${repo}/fork`, '_blank', 'noopener,noreferrer')}
+              className="dev-btn dev-btn-secondary text-xs gap-1.5"
+              title="Fork on GitHub"
+            >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <circle cx="5" cy="3" r="1.5" />
                 <circle cx="11" cy="3" r="1.5" />
@@ -224,20 +223,16 @@ export function RepositoryDetailsPage() {
         <MetricCard label="Stars" value={repoInfo?.stargazers_count?.toLocaleString() ?? '—'} sublabel="" />
         <MetricCard label="Forks" value={repoInfo?.forks_count?.toLocaleString() ?? '—'} sublabel="" />
         <MetricCard label="Open Issues" value={repoInfo?.open_issues_count?.toLocaleString() ?? '—'} sublabel="" />
-        <MetricCard label="Contributors" value={repoData?.contributors?.length?.toLocaleString() ?? '—'} sublabel="" />
-        <MetricCard label="Commits" value={repoData?.commits?.length?.toLocaleString() ?? '—'} sublabel="" />
+        <MetricCard label="Top Contributors" value={repoData?.contributors?.length?.toLocaleString() ?? '—'} sublabel="" />
+        <MetricCard label="Recent Commits" value={repoData?.commits?.length?.toLocaleString() ?? '—'} sublabel="" />
       </div>
 
       {/* Navigation Tabs */}
       <DevTabs
-        tabs={['Overview', 'Code', 'Issues', 'Pull Requests', 'Analytics']}
+        tabs={['Overview']}
         active={tab}
         onChange={setTab}
         className="mb-5"
-        counts={{
-          Issues: repoInfo?.open_issues_count ?? 0,
-          'Pull Requests': repoInfo?.open_issues_count ? '—' : 0, // PR count not in basic repo API
-        }}
       />
 
       {/* Tab Panels */}
@@ -277,7 +272,10 @@ export function RepositoryDetailsPage() {
                     main
                   </span>
                 </div>
-                <span className="text-xs text-[#2f81f7] hover:underline cursor-pointer">
+                <span
+                  onClick={() => window.open(repoInfo?.html_url ? `${repoInfo.html_url}/commits/${repoInfo.default_branch || 'main'}` : `https://github.com/${owner}/${repo}/commits`, '_blank', 'noopener,noreferrer')}
+                  className="text-xs text-[#2f81f7] hover:underline cursor-pointer"
+                >
                   View commit history →
                 </span>
               </div>
@@ -402,34 +400,6 @@ export function RepositoryDetailsPage() {
                 ))}
               </div>
             </SidebarSection>
-          </div>
-        </div>
-      )}
-
-      {tab === 'Analytics' && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="dev-card p-4">
-              <div className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider mb-3">
-                Commit Activity Frequency
-              </div>
-              <VectorChart height={160} type="area" label="Commits / Week (52 Weeks)" />
-            </div>
-            <div className="dev-card p-4">
-              <div className="text-xs font-semibold text-[#f0f6fc] uppercase tracking-wider mb-3">
-                Pull Request Velocity
-              </div>
-              <VectorChart height={160} type="bar" label="PRs Merged Monthly" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {['Code', 'Issues', 'Pull Requests'].includes(tab) && (
-        <div className="dev-card p-10 text-center">
-          <div className="text-sm font-semibold text-[#f0f6fc] mb-1">{tab} View</div>
-          <div className="text-xs text-[#8b949e]">
-            Live synchronized repository data for {tab.toLowerCase()} is enabled in Developer Canvas mode.
           </div>
         </div>
       )}

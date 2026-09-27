@@ -68,7 +68,7 @@ const authLimiter = rateLimit({
 
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/github', authLimiter);
+app.get('/api/auth/github', authLimiter);
 
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/auth', authRouter);

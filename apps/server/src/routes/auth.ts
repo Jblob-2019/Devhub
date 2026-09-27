@@ -3,6 +3,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { hashPassword, verifyPassword, signJwt, verifyJwt } from '../services/auth.js';
 import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGithubToUser, updateGithubAccessToken } from '../models/user.js';
+import { encryptToken } from '../services/crypto.js';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ const validateBody = <T extends z.ZodSchema>(schema: T) => (
       details: result.error.flatten().fieldErrors,
     });
   }
-  (req as any).validatedBody = result.data as z.infer<T>;
+  req.validatedBody = result.data as z.infer<T>;
   next();
 };
 
@@ -60,32 +61,19 @@ const getCookieOptions = () => {
   };
 };
 
-const getOauthCookieOptions = () => {
-  const isProd = process.env.NODE_ENV === 'production';
-  const sameSite = isProd ? ('none' as const) : ('lax' as const);
-  return {
-    httpOnly: true,
-    secure: isProd,
-    sameSite,
-    path: '/',
-    maxAge: 10 * 60 * 1000,
-  };
-};
-
 const getOauthStateCookieOptions = () => {
   const isProd = process.env.NODE_ENV === 'production';
-  const sameSite = isProd ? ('none' as const) : ('lax' as const);
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite,
+    sameSite: isProd ? ('none' as const) : ('lax' as const),
     path: '/',
     maxAge: 10 * 60 * 1000,
   };
 };
 
 router.post('/register', validateBody(registerSchema), async (req, res) => {
-  const { name, email, password } = (req as any).validatedBody as RegisterInput;
+  const { name, email, password } = req.validatedBody as RegisterInput;
   const existing = await findUserByEmail(email);
   if (existing) {
     return res.status(409).json({ error: 'User with that email already exists' });
@@ -106,7 +94,7 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
 });
 
 router.post('/login', validateBody(loginSchema), async (req, res) => {
-  const { email, password } = (req as any).validatedBody as LoginInput;
+  const { email, password } = req.validatedBody as LoginInput;
   const user = await findUserByEmail(email);
   if (!user || !user.password_hash) {
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -129,7 +117,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
 
 router.post('/logout', (req, res) => {
   res.clearCookie('session', getCookieOptions());
-  res.clearCookie('oauth_state', getOauthCookieOptions());
+  res.clearCookie('oauth_state', getCookieOptions());
   res.json({ message: 'Logged out' });
 });
 
@@ -138,7 +126,7 @@ router.get('/me', async (req, res) => {
   const cookieOptions = getCookieOptions();
   console.debug('[AUTH] /api/auth/me', {
     hasToken: !!token,
-    tokenPreview: token ? `${token.slice(0, 20)}...` : null,
+    tokenPreview: token ? `${(token as string).slice(0, 20)}...` : null,
     cookieOptions,
     nodeEnv: process.env.NODE_ENV,
     origin: req.headers.origin,
@@ -186,8 +174,6 @@ router.get('/github/callback', async (req, res) => {
     else console.log(JSON.stringify(base));
   };
 
-  const startTime = Date.now();
-
   try {
     log('oauth:start', { hasCode: !!req.query.code, hasState: !!req.query.state, hasCookieState: !!req.cookies?.oauth_state });
 
@@ -199,8 +185,15 @@ router.get('/github/callback', async (req, res) => {
       return res.redirect(`${getFrontendUrl()}/auth/callback?error=invalid_state`);
     }
 
-    // Clear the state cookie
-    res.clearCookie('oauth_state', getOauthStateCookieOptions());
+    // Clear the state cookie without maxAge
+    res.clearCookie('oauth_state', getCookieOptions());
+
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      log('oauth:missing_credentials');
+      return res.redirect(`${getFrontendUrl()}/auth/callback?error=configuration_error`);
+    }
 
     // Exchange code for access token
     const tokenResp = await fetch('https://github.com/login/oauth/access_token', {
@@ -210,15 +203,16 @@ router.get('/github/callback', async (req, res) => {
         Accept: 'application/json',
       },
       body: JSON.stringify({
-        client_id: process.env.GITHUB_CLIENT_ID,
-        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
         redirect_uri: getGithubCallbackUrl(),
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
-    const tokenData = await tokenResp.json();
-    if (!tokenResp.ok || tokenData.error) {
+    const tokenData = await tokenResp.json() as { error?: string; error_description?: string; access_token?: string };
+    if (!tokenResp.ok || tokenData.error || !tokenData.access_token) {
       log('oauth:token_error', { error: tokenData.error, error_description: tokenData.error_description });
       return res.redirect(`${getFrontendUrl()}/auth/callback?error=token_exchange_failed`);
     }
@@ -231,6 +225,7 @@ router.get('/github/callback', async (req, res) => {
         Authorization: `Bearer ${githubAccessToken}`,
         Accept: 'application/vnd.github+json',
       },
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!userResp.ok) {
@@ -238,7 +233,13 @@ router.get('/github/callback', async (req, res) => {
       return res.redirect(`${getFrontendUrl()}/auth/callback?error=user_fetch_failed`);
     }
 
-    const githubUser = await userResp.json();
+    const githubUser = await userResp.json() as {
+      id: number;
+      login: string;
+      name?: string | null;
+      email?: string | null;
+      avatar_url?: string;
+    };
 
     // Fetch user email if not public
     let githubEmail = githubUser.email;
@@ -248,10 +249,11 @@ router.get('/github/callback', async (req, res) => {
           Authorization: `Bearer ${githubAccessToken}`,
           Accept: 'application/vnd.github+json',
         },
+        signal: AbortSignal.timeout(10_000),
       });
       if (emailsResp.ok) {
-        const emails = await emailsResp.json();
-        const primary = emails.find((e: any) => e.primary && e.verified);
+        const emails = await emailsResp.json() as Array<{ primary?: boolean; verified?: boolean; email?: string }>;
+        const primary = emails.find(e => e.primary && e.verified);
         githubEmail = primary?.email ?? emails[0]?.email;
       }
     }
@@ -260,6 +262,9 @@ router.get('/github/callback', async (req, res) => {
       log('oauth:no_email', { githubId: githubUser.id });
       return res.redirect(`${getFrontendUrl()}/auth/callback?error=no_email`);
     }
+
+    // Encrypt the GitHub OAuth access token before saving to database
+    const encryptedToken = encryptToken(githubAccessToken);
 
     // Find or create user
     let user = await findUserByEmail(githubEmail);
@@ -270,10 +275,10 @@ router.get('/github/callback', async (req, res) => {
     if (user) {
       // Link GitHub account if not already linked
       if (!user.github_id) {
-        user = await linkGithubToUser(user.id, String(githubUser.id), githubUser.login, githubUser.avatar_url, githubAccessToken);
+        user = await linkGithubToUser(user.id, String(githubUser.id), githubUser.login, githubUser.avatar_url, encryptedToken);
       } else {
-        // Update access token
-        user = await updateGithubAccessToken(user.id, githubAccessToken);
+        // Update encrypted access token
+        user = await updateGithubAccessToken(user.id, encryptedToken);
       }
     } else {
       // Create new user
@@ -284,7 +289,7 @@ router.get('/github/callback', async (req, res) => {
         avatar_url: githubUser.avatar_url,
         github_id: String(githubUser.id),
         github_username: githubUser.login,
-        github_access_token: githubAccessToken,
+        github_access_token: encryptedToken,
       });
     }
 
@@ -299,8 +304,9 @@ router.get('/github/callback', async (req, res) => {
       .cookie('session', token, sessionCookieOptions)
       .redirect(`${getFrontendUrl()}/auth/callback`);
 
-  } catch (err: any) {
-    log('oauth:exception', { error: err?.message ?? String(err) });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    log('oauth:exception', { error: errorMsg });
     return res.redirect(`${getFrontendUrl()}/auth/callback?error=server_error`);
   }
 });

@@ -1,8 +1,15 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { GitHubService } from '../services/github.service.js';
+import { GitHubService, GitHubApiError } from '../services/github.service.js';
 import { requireAuth } from '../middleware/auth.js';
 import { findUserById } from '../models/user.js';
+import { decryptToken } from '../services/crypto.js';
+import {
+  GitHubRepository,
+  GitHubEvent,
+  GitHubCommit,
+  GitHubContributor,
+} from '../types/github.js';
 
 const router = Router();
 const gh = new GitHubService();
@@ -11,7 +18,9 @@ const gh = new GitHubService();
 const searchQuerySchema = z.object({
   q: z.string().min(1, 'Query is required').max(500, 'Query too long'),
   per_page: z.coerce.number().int().min(1).max(100).optional().default(20),
-  page: z.coerce.number().int().min(1).max(10).optional().default(1),
+  page: z.coerce.number().int().min(1).max(100).optional().default(1),
+  sort: z.enum(['stars', 'forks', 'updated', 'followers', 'repositories']).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
 });
 
 const repoParamsSchema = z.object({
@@ -27,7 +36,7 @@ type SearchQueryInput = z.infer<typeof searchQuerySchema>;
 type RepoParamsInput = z.infer<typeof repoParamsSchema>;
 type UsernameParamsInput = z.infer<typeof usernameParamsSchema>;
 
-// Properly typed validation middleware
+// Typed validation middleware
 const validateQuery = <T extends z.ZodSchema>(schema: T) => (
   req: Request,
   res: Response,
@@ -40,7 +49,7 @@ const validateQuery = <T extends z.ZodSchema>(schema: T) => (
       details: result.error.flatten().fieldErrors,
     });
   }
-  (req as any).validatedQuery = result.data as z.infer<T>;
+  req.validatedQuery = result.data as z.infer<T>;
   next();
 };
 
@@ -56,11 +65,11 @@ const validateParams = <T extends z.ZodSchema>(schema: T) => (
       details: result.error.flatten().fieldErrors,
     });
   }
-  (req as any).validatedParams = result.data as z.infer<T>;
+  req.validatedParams = result.data as z.infer<T>;
   next();
 };
 
-// Language colors inline (to avoid import issues with Node16 module resolution)
+// Language colors inline
 const LANGUAGE_COLORS: Record<string, string> = {
   TypeScript: '#3178c6',
   JavaScript: '#f1e05a',
@@ -89,13 +98,13 @@ function getLanguageColor(language: string): string {
 }
 
 // Helper: aggregate language stats across repos
-function aggregateLanguages(repos: any[]) {
+function aggregateLanguages(repos: GitHubRepository[]) {
   const langBytes: Record<string, number> = {};
   let totalBytes = 0;
 
   for (const repo of repos) {
     if (repo.language) {
-      const bytes = repo.size * 1024; // approximate from repo size in KB
+      const bytes = (repo.size || 1) * 1024;
       langBytes[repo.language] = (langBytes[repo.language] || 0) + bytes;
       totalBytes += bytes;
     }
@@ -112,11 +121,21 @@ function aggregateLanguages(repos: any[]) {
 }
 
 // Helper: process contribution calendar into heatmap format
-function processContributionCalendar(calendar: any) {  if (!calendar?.weeks) return { total: 0, weeks: [] };
+function processContributionCalendar(calendar: {
+  totalContributions?: number;
+  weeks?: Array<{
+    contributionDays: Array<{
+      date: string;
+      contributionCount: number;
+      color: string;
+    }>;
+  }>;
+}) {
+  if (!calendar?.weeks) return { total: 0, weeks: [] };
 
   const total = calendar.totalContributions || 0;
-  const weeks = calendar.weeks.map((week: any) => ({
-    days: week.contributionDays.map((day: any) => ({
+  const weeks = calendar.weeks.map((week) => ({
+    days: week.contributionDays.map((day) => ({
       date: day.date,
       count: day.contributionCount,
       color: day.color,
@@ -127,7 +146,7 @@ function processContributionCalendar(calendar: any) {  if (!calendar?.weeks) ret
 }
 
 // Helper: process events into activity timeline
-function processEvents(events: any[]) {
+function processEvents(events: GitHubEvent[]) {
   return events
     .filter((e) => ['PushEvent', 'CreateEvent', 'IssuesEvent', 'PullRequestEvent', 'WatchEvent', 'ForkEvent', 'ReleaseEvent'].includes(e.type))
     .slice(0, 30)
@@ -142,13 +161,13 @@ function processEvents(events: any[]) {
 
 // Repository search
 router.get('/search/repositories', validateQuery(searchQuerySchema), async (req, res) => {
-  const { q, per_page, page } = (req as any).validatedQuery as SearchQueryInput;
+  const { q, per_page, page, sort, order } = req.validatedQuery as SearchQueryInput;
   try {
-    const result = await gh.searchRepositories(q, per_page, page);
+    const result = await gh.searchRepositories(q, per_page, page, sort, order);
     res.json(result);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('GitHub search error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     const message = status === 403 ? 'GitHub API rate limit exceeded' : 'GitHub search failed';
     res.status(status).json({ error: message });
   }
@@ -156,13 +175,13 @@ router.get('/search/repositories', validateQuery(searchQuerySchema), async (req,
 
 // User (developer) search
 router.get('/search/users', validateQuery(searchQuerySchema), async (req, res) => {
-  const { q, per_page, page } = (req as any).validatedQuery as SearchQueryInput;
+  const { q, per_page, page, sort, order } = req.validatedQuery as SearchQueryInput;
   try {
-    const result = await gh.searchUsers(q, per_page, page);
+    const result = await gh.searchUsers(q, per_page, page, sort, order);
     res.json(result);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('GitHub user search error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     const message = status === 403 ? 'GitHub API rate limit exceeded' : 'GitHub user search failed';
     res.status(status).json({ error: message });
   }
@@ -170,16 +189,16 @@ router.get('/search/users', validateQuery(searchQuerySchema), async (req, res) =
 
 // Repository details
 router.get('/repos/:owner/:repo', validateParams(repoParamsSchema), async (req, res) => {
-  const { owner, repo } = (req as any).validatedParams as RepoParamsInput;
+  const { owner, repo } = req.validatedParams as RepoParamsInput;
   try {
     const repoData = await gh.getRepository(owner, repo);
     const languages = await gh.getRepositoryLanguages(owner, repo);
     const contributors = await gh.getRepositoryContributors(owner, repo);
     const commits = await gh.getRepositoryCommits(owner, repo);
     res.json({ repo: repoData, languages, contributors, commits });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Repo fetch error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     let message = 'Failed to fetch repository data';
     if (status === 404) message = 'Repository not found';
     else if (status === 403) message = 'GitHub API rate limit exceeded or access forbidden';
@@ -190,13 +209,13 @@ router.get('/repos/:owner/:repo', validateParams(repoParamsSchema), async (req, 
 
 // User profile details (basic)
 router.get('/users/:username', validateParams(usernameParamsSchema), async (req, res) => {
-  const { username } = (req as any).validatedParams as UsernameParamsInput;
+  const { username } = req.validatedParams as UsernameParamsInput;
   try {
     const userData = await gh.getUser(username);
     res.json(userData);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('User fetch error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     let message = 'Failed to fetch user data';
     if (status === 404) message = 'User not found';
     res.status(status).json({ error: message, status });
@@ -205,7 +224,7 @@ router.get('/users/:username', validateParams(usernameParamsSchema), async (req,
 
 // Comprehensive developer profile endpoint
 router.get('/users/:username/profile', validateParams(usernameParamsSchema), async (req, res) => {
-  const { username } = (req as any).validatedParams as UsernameParamsInput;
+  const { username } = req.validatedParams as UsernameParamsInput;
   try {
     const [userData, repos, events, contributions] = await Promise.all([
       gh.getUser(username),
@@ -270,9 +289,9 @@ router.get('/users/:username/profile', validateParams(usernameParamsSchema), asy
       activity: activityTimeline,
       repositories: topRepos,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Profile fetch error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     let message = 'Failed to fetch developer profile';
     if (status === 404) message = 'User not found';
     else if (status === 403) message = 'GitHub API rate limit exceeded';
@@ -285,9 +304,9 @@ router.get('/rate_limit', async (_req, res) => {
   try {
     const data = await gh.getRateLimit();
     res.json(data);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Rate limit fetch error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     res.status(status).json({ error: 'Failed to fetch rate limit', status });
   }
 });
@@ -295,7 +314,7 @@ router.get('/rate_limit', async (_req, res) => {
 // ===== Authenticated User Dashboard endpoint =====
 router.get('/me/dashboard', requireAuth, async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     if (!user?.id) {
       return res.status(401).json({ error: 'Unauthenticated' });
     }
@@ -305,7 +324,8 @@ router.get('/me/dashboard', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'GitHub account not connected or token missing' });
     }
 
-    const githubToken = dbUser.github_access_token;
+    // Decrypt the stored GitHub access token
+    const githubToken = decryptToken(dbUser.github_access_token);
 
     const [
       authUser,
@@ -446,9 +466,9 @@ router.get('/me/dashboard', requireAuth, async (req, res) => {
       following: followingData,
       organizations: orgsData,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Dashboard fetch error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     let message = 'Failed to fetch dashboard data';
     if (status === 401) message = 'GitHub token invalid or expired';
     else if (status === 403) message = 'GitHub API rate limit exceeded';
@@ -456,25 +476,22 @@ router.get('/me/dashboard', requireAuth, async (req, res) => {
   }
 });
 
-// Recommendations endpoint - requires authentication
+// Recommendations endpoint - eliminates N+1 requests by leveraging repo metadata
 router.get('/recommendations', requireAuth, async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user;
     let query = 'stars:>1000';
 
     if (user?.github_username) {
       try {
-        const userRepos = await gh.searchRepositories(`user:${user.github_username}`, 100);
+        // Fetch up to 30 user repos in a single request instead of issuing 100+ separate language queries
+        const userRepos = await gh.getUserRepos(user.github_username, 30);
         const languageCounts: Record<string, number> = {};
 
-        for (const repo of userRepos.items || []) {
-          try {
-            const languages = await gh.getRepositoryLanguages(repo.owner.login, repo.name);
-            for (const [lang, bytes] of Object.entries(languages)) {
-              languageCounts[lang] = (languageCounts[lang] || 0) + (bytes as number);
-            }
-          } catch {
-            // Skip repos that fail
+        for (const repo of userRepos) {
+          if (repo.language) {
+            // Aggregate user's language preferences from repository metadata
+            languageCounts[repo.language] = (languageCounts[repo.language] || 0) + (repo.stargazers_count || 1);
           }
         }
 
@@ -487,15 +504,15 @@ router.get('/recommendations', requireAuth, async (req, res) => {
           query = preferredLanguages.map(l => `language:${l}`).join(' ') + ' stars:>100';
         }
       } catch {
-        // Fallback to default query
+        // Fallback to default query if user repo lookup fails
       }
     }
 
     const result = await gh.searchRepositories(query, 20);
     res.json(result.items || []);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Recommendations error:', e);
-    const status = e?.status ?? 500;
+    const status = e instanceof GitHubApiError ? e.status : 500;
     let message = 'Failed to fetch recommendations';
     if (status === 403) message = 'GitHub API rate limit exceeded';
     res.status(status).json({ error: message, status });

@@ -11,13 +11,15 @@ import { RepositoryDetailsPage } from './pages/RepositoryDetails';
 import { SavedItemsPage } from './pages/SavedItems';
 import { DashboardPage } from './pages/Dashboard';
 import { LoginPage, RegisterPage } from './pages/Auth';
-import { MobileHomePage, MobileBottomNav } from './pages/MobileHome';
+import { MobileBottomNav } from './pages/MobileHome';
+import { githubLogin } from './services/authService';
 
 // Mobile layout wrapper component
 function MobileLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
   const [isMobileBreakpoint, setIsMobileBreakpoint] = React.useState(false);
   const [frameMode] = React.useState<FrameMode>('desktop');
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -30,8 +32,7 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
   const showMobile = frameMode === 'mobile' || isMobileBreakpoint;
 
   // Get current path for Nav
-  const location = useLocation();
-  const currentPage = location.pathname === '/' ? 'home' :
+  const currentPage = (location.pathname === '/' || location.pathname === '/home') ? 'home' :
     location.pathname === '/explore' ? 'explore' :
     location.pathname.startsWith('/developer') ? 'profile' :
     location.pathname.startsWith('/repository') ? 'repo' :
@@ -42,7 +43,8 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
 
   const handleNav = (page: string) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    window.location.href = page === 'home' ? '/' : page.startsWith('/') ? page : `/${page}`;
+    const target = page === 'home' ? '/home' : page.startsWith('/') ? page : `/${page}`;
+    navigate(target);
   };
 
   if (showMobile && !isMobileBreakpoint) {
@@ -90,48 +92,8 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Auth callback page for GitHub OAuth redirect
+// GitHub OAuth callback page with explicit error states
 function AuthCallbackPage() {
-  const { refresh } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const completedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    // Guard against StrictMode double-invocation and multiple runs
-    if (completedRef.current) return;
-    completedRef.current = true;
-
-    const initAuth = async () => {
-      const user = await refresh();
-      if (user) {
-        console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
-        navigate('/home', { replace: true });
-      } else {
-        console.debug('[AUTH] OAuth callback: /api/auth/me returned 401');
-        // Show explicit error instead of silent redirect
-        // We'll handle this in the render below via state
-      }
-    };
-    initAuth();
-  }, [refresh, navigate]);
-
-  // We don't know the result yet if we're here - show loading
-  // If refresh returns null, we need to show error. But we can't easily
-  // communicate that back from the effect without state. Let's use state.
-  // Actually, let's refactor to use state for the result.
-  return (
-    <div className="min-h-screen bg-[#0b141c] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-[#2f81f7] border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-[#8b949e] font-mono">Completing sign in...</p>
-      </div>
-    </div>
-  );
-}
-
-// Better AuthCallbackPage with proper error handling
-function AuthCallbackPageWithError() {
   const { refresh } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = React.useState<string | null>(null);
@@ -142,13 +104,18 @@ function AuthCallbackPageWithError() {
     completedRef.current = true;
 
     const initAuth = async () => {
-      const user = await refresh();
-      if (user) {
-        console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
-        navigate('/home', { replace: true });
-      } else {
-        console.debug('[AUTH] OAuth callback: /api/auth/me returned 401');
-        setError('GitHub sign-in completed, but DevHub could not restore your session. Please try again.');
+      try {
+        const user = await refresh();
+        if (user) {
+          console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
+          navigate('/home', { replace: true });
+        } else {
+          console.debug('[AUTH] OAuth callback: /api/auth/me returned 401');
+          setError('GitHub sign-in completed, but DevHub could not restore your session. Please try again.');
+        }
+      } catch (err: any) {
+        console.error('[AUTH] OAuth callback error:', err);
+        setError(err?.message || 'Authentication failed. Please try again.');
       }
     };
     initAuth();
@@ -164,7 +131,7 @@ function AuthCallbackPageWithError() {
             <p className="text-[#8b949e] mb-6">{error}</p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/auth/github`}
+                onClick={() => githubLogin()}
                 className="dev-btn dev-btn-primary"
               >
                 Retry with GitHub
@@ -192,30 +159,7 @@ function AuthCallbackPageWithError() {
   );
 }
 
-// Public routes that don't require auth
-function PublicRoutes() {
-  return (
-    <Routes>
-      <Route path="/login" element={<AuthGate redirectTo="/"><LoginPage /></AuthGate>} />
-      <Route path="/register" element={<AuthGate redirectTo="/"><RegisterPage /></AuthGate>} />
-      <Route path="/explore" element={<ExplorePage />} />
-      <Route path="/developer" element={<DeveloperProfilePage />} />
-      <Route path="/repository" element={<RepositoryDetailsPage />} />
-    </Routes>
-  );
-}
-
-// Protected routes that require auth
-function PrivateRoutes() {
-  return (
-    <Routes>
-      <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/saved" element={<ProtectedRoute><SavedItemsPage /></ProtectedRoute>} />
-    </Routes>
-  );
-}
-
-// Root route - the authentication gate
+// Root route - authentication gate
 function RootRoute() {
   const { user, loading } = useAuth();
 
@@ -237,16 +181,6 @@ function RootRoute() {
   return <Navigate to="/home" replace />;
 }
 
-// Home route - only accessible when authenticated
-function HomeRoute() {
-  return (
-    <Routes>
-      <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-      <Route path="/" element={<RootRoute />} />
-    </Routes>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -255,7 +189,7 @@ export default function App() {
           <main className="flex-1">
             <MobileLayout>
               <Routes>
-                <Route path="/auth/callback" element={<AuthCallbackPageWithError />} />
+                <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route path="/login" element={<AuthGate redirectTo="/"><LoginPage /></AuthGate>} />
                 <Route path="/register" element={<AuthGate redirectTo="/"><RegisterPage /></AuthGate>} />
                 <Route path="/explore" element={<ExplorePage />} />

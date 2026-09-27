@@ -5,7 +5,7 @@
 const getApiBase = (): string => {
   // Explicit env var takes priority
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
   }
 
   // In development, use relative paths (Vite proxy handles it)
@@ -13,13 +13,19 @@ const getApiBase = (): string => {
     return '';
   }
 
-  // In production without VITE_API_URL, fallback to same origin
-  // This assumes frontend and backend are on same domain
+  // In production, missing VITE_API_URL is a deployment misconfiguration
+  if (import.meta.env.PROD) {
+    console.error(
+      '[CONFIG ERROR] VITE_API_URL is not set in production! ' +
+      'Requests to backend APIs will fail. Ensure VITE_API_URL is set in your hosting environment (e.g. Vercel).'
+    );
+  }
+
+  // Fallback to same origin if window is defined
   if (typeof window !== 'undefined') {
     return window.location.origin;
   }
 
-  // SSR/build-time fallback (should not happen in production)
   return '';
 };
 

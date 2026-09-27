@@ -19,9 +19,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
   if (!user) {
     return res.status(401).json({ error: 'User not found' });
   }
-  // @ts-ignore – augmenting request type
   req.user = user;
-  // @ts-ignore – expose userId for downstream handlers
   req.userId = user.id;
   next();
 };

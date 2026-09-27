@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
-  VectorChart,
   SaveButton,
   StarCount,
   ForkCount,
@@ -15,9 +14,22 @@ import {
 import { useDevHub } from '../hooks/useDevHub';
 import { useDevHubStore } from '../store/useDevHubStore';
 
+const LANGUAGE_COLORS: Record<string, string> = {
+  TypeScript: '#3178c6',
+  JavaScript: '#f1e05a',
+  Python: '#3572A5',
+  Rust: '#dea584',
+  Go: '#00ADD8',
+  'C++': '#f34b7d',
+  C: '#555555',
+  Java: '#b07219',
+  Ruby: '#701516',
+  PHP: '#4F5D95',
+  Other: '#8b949e',
+};
+
 export function HomePage() {
   const navigate = useNavigate();
-  const onNav = (page: string) => navigate(page);
 
   const {
     featuredRepo,
@@ -31,7 +43,7 @@ export function HomePage() {
     error,
   } = useDevHub();
 
-  const { savedRepos, toggleSaveRepo, addRecent } = useDevHubStore();
+  const { savedRepos, toggleSaveRepo, addRecent, recentlyViewed } = useDevHubStore();
   const [alertDismissed, setAlertDismissed] = useState(false);
 
   const handleRepoClick = (fullName: string) => {
@@ -39,6 +51,29 @@ export function HomePage() {
     const [owner, repo] = fullName.split('/');
     navigate(`/repository?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`);
   };
+
+  // Real dynamic language share calculated from recommended repositories
+  const languageShare = useMemo(() => {
+    if (!repositories.length) return [];
+    const counts: Record<string, number> = {};
+    for (const r of repositories) {
+      const lang = r.language || 'Other';
+      counts[lang] = (counts[lang] || 0) + 1;
+    }
+    const total = repositories.length;
+    return Object.entries(counts)
+      .map(([lang, count]) => ({
+        lang,
+        pct: Math.round((count / total) * 100),
+        color: LANGUAGE_COLORS[lang] || LANGUAGE_COLORS.Other,
+      }))
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 5);
+  }, [repositories]);
+
+  const recentRepos = useMemo(() => {
+    return recentlyViewed.filter(r => r.type === 'repo');
+  }, [recentlyViewed]);
 
   // Loading state
   if (loading) {
@@ -92,13 +127,13 @@ export function HomePage() {
           Discover GitHub Repositories &amp; Developers
         </h1>
         <p className="text-sm text-[#8b949e] max-w-lg">
-          Explore ranked trending repositories, track real-time commit activity, and inspect comprehensive technical metrics.
+          Explore curated repositories, track commit activity, and inspect comprehensive technical metrics.
         </p>
         <DevSearch
           placeholder="Search for repositories, developers, topics..."
           value={searchQuery}
           onChange={setSearchQuery}
-          onSubmit={() => onNav('explore')}
+          onSubmit={() => navigate('/explore')}
           size="lg"
           className="w-full max-w-xl mt-1"
         />
@@ -108,8 +143,7 @@ export function HomePage() {
             <button
               key={tag}
               onClick={() => {
-                setSearchQuery(tag);
-                onNav('explore');
+                navigate(`/explore`);
               }}
               className="text-xs font-mono text-[#8b949e] hover:text-[#2f81f7] hover:underline transition-colors"
             >
@@ -170,7 +204,7 @@ export function HomePage() {
                       </span>
                     </div>
 
-                    {featuredRepo.languages && (
+                    {featuredRepo.languages && featuredRepo.languages.length > 0 && (
                       <div className="pt-2 border-t border-[#30363d]/50">
                         <LanguageBar langs={featuredRepo.languages} />
                       </div>
@@ -186,17 +220,17 @@ export function HomePage() {
             </div>
           )}
 
-          {/* Trending Repositories Section */}
+          {/* Recommended Repositories Section */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <h2 className="font-semibold text-base text-[#f0f6fc]">Trending Repositories</h2>
+                <h2 className="font-semibold text-base text-[#f0f6fc]">Recommended Repositories</h2>
                 <span className="text-xs font-mono text-[#6e7681]">
                   ({repositories.length} repositories)
                 </span>
               </div>
               <button
-                onClick={() => onNav('explore')}
+                onClick={() => navigate('/explore')}
                 className="text-xs text-[#2f81f7] hover:underline font-medium"
               >
                 View all in Explore →
@@ -204,12 +238,15 @@ export function HomePage() {
             </div>
 
             <div className="space-y-3">
-              {repositories.map((repo, i) => {
+              {repositories.map((repo) => {
                 const isSaved = savedRepos.includes(repo.fullName);
                 return (
                   <div
                     key={repo.id}
-                    className="dev-card dev-card-interactive p-4 flex items-start gap-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]" role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleRepoClick(repo.fullName); }}
+                    className="dev-card dev-card-interactive p-4 flex items-start gap-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#2f81f7]"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleRepoClick(repo.fullName); }}
                     onClick={() => handleRepoClick(repo.fullName)}
                   >
                     <Avatar name={repo.name} size={34} rounded={false} />
@@ -233,16 +270,18 @@ export function HomePage() {
                         <span className="text-[11px] text-[#6e7681] font-mono">
                           {repo.updatedAt}
                         </span>
-                        <div className="flex gap-1.5 ml-auto">
-                          {repo.topics.slice(0, 2).map(t => (
-                            <span
-                              key={t}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
+                        {repo.topics && repo.topics.length > 0 && (
+                          <div className="flex gap-1.5 ml-auto">
+                            {repo.topics.slice(0, 2).map(t => (
+                              <span
+                                key={t}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#21262d] text-[#8b949e] border border-[#30363d]"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -254,48 +293,42 @@ export function HomePage() {
 
         {/* Right Sidebar Column */}
         <div className="space-y-5">
-          {/* Weekly Commit Activity Graph */}
-
-          {/* Top Ecosystem Languages */}
-          <SidebarSection title="Language Share">
-            <div className="space-y-2.5">
-              {[
-                { lang: 'TypeScript', pct: 38, color: '#3178c6' },
-                { lang: 'Python', pct: 27, color: '#3572A5' },
-                { lang: 'Rust', pct: 15, color: '#dea584' },
-                { lang: 'Go', pct: 11, color: '#00ADD8' },
-                { lang: 'Other', pct: 9, color: '#8b949e' }
-              ].map(item => (
-                <div key={item.lang} className="space-y-1">
-                  <div className="flex justify-between text-xs font-mono">
-                    <span className="text-[#c9d1d9] flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: item.color }} />
-                      {item.lang}
-                    </span>
-                    <span className="text-[#8b949e]">{item.pct}%</span>
+          {/* Real Ecosystem Language Distribution */}
+          {languageShare.length > 0 && (
+            <SidebarSection title="Language Share">
+              <div className="space-y-2.5">
+                {languageShare.map(item => (
+                  <div key={item.lang} className="space-y-1">
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-[#c9d1d9] flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: item.color }} />
+                        {item.lang}
+                      </span>
+                      <span className="text-[#8b949e]">{item.pct}%</span>
+                    </div>
+                    <div className="h-1.5 bg-[#21262d] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${item.pct}%`, backgroundColor: item.color }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 bg-[#21262d] rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${item.pct}%`, backgroundColor: item.color }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SidebarSection>
+                ))}
+              </div>
+            </SidebarSection>
+          )}
 
           {/* Quick Actions Card */}
           <SidebarSection title="Quick Actions">
             <div className="space-y-1">
               {[
-                { label: 'Import from GitHub', icon: '↓', target: '/login' },
-                  { label: 'User Dashboard', icon: '◈', target: '/dashboard' },
-                  { label: 'Saved Bookmarks', icon: '★', target: '/saved' },
+                { label: 'Explore Ecosystem', icon: '🔍', target: '/explore' },
+                { label: 'User Dashboard', icon: '◈', target: '/dashboard' },
+                { label: 'Saved Bookmarks', icon: '★', target: '/saved' },
               ].map(action => (
                 <button
                   key={action.label}
-                  onClick={() => onNav(action.target)}
+                  onClick={() => navigate(action.target)}
                   className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-[#8b949e] hover:bg-[#21262d] hover:text-[#f0f6fc] text-left transition-colors font-medium"
                 >
                   <span className="w-5 text-center font-mono text-[#2f81f7]">{action.icon}</span>
@@ -308,18 +341,24 @@ export function HomePage() {
           {/* Recently Viewed */}
           <SidebarSection title="Recently Viewed">
             <div className="space-y-1.5">
-              {['facebook/react', 'golang/go', 'denoland/deno'].map(repoName => (
-                <button
-                  key={repoName}
-                  onClick={() => handleRepoClick(repoName)}
-                  className="flex items-center gap-2.5 w-full hover:bg-[#21262d] rounded-md px-2 py-1.5 text-left transition-colors group"
-                >
-                  <Avatar name={repoName} size={22} rounded={false} />
-                  <span className="text-xs text-[#8b949e] group-hover:text-[#2f81f7] font-mono truncate">
-                    {repoName}
-                  </span>
-                </button>
-              ))}
+              {recentRepos.length > 0 ? (
+                recentRepos.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleRepoClick(item.name)}
+                    className="flex items-center gap-2.5 w-full hover:bg-[#21262d] rounded-md px-2 py-1.5 text-left transition-colors group"
+                  >
+                    <Avatar name={item.name} size={22} rounded={false} />
+                    <span className="text-xs text-[#8b949e] group-hover:text-[#2f81f7] font-mono truncate">
+                      {item.name}
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <p className="text-xs text-[#6e7681] py-2">
+                  No recently viewed repositories yet.
+                </p>
+              )}
             </div>
           </SidebarSection>
         </div>

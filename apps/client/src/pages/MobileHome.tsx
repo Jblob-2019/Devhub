@@ -28,7 +28,7 @@ export function MobileHomePage() {
 
   const handleDevClick = (username: string) => {
     addRecent({ type: 'dev', id: username, name: username });
-    onNav('/developer');
+    navigate(`/developer?username=${encodeURIComponent(username)}`);
   };
 
   return (
@@ -44,7 +44,7 @@ export function MobileHomePage() {
         </h1>
         <DevSearch
           placeholder="Search repos &amp; devs..."
-          onSubmit={() => onNav('explore')}
+          onSubmit={() => navigate('/explore')}
           size="sm"
         />
       </div>
@@ -70,7 +70,7 @@ export function MobileHomePage() {
           <span className="font-semibold text-xs text-[#f0f6fc] uppercase tracking-wider">
             Trending Today
           </span>
-          <button onClick={() => onNav('explore')} className="text-xs text-[#2f81f7]">
+          <button onClick={() => navigate('/explore')} className="text-xs text-[#2f81f7]">
             See all →
           </button>
         </div>
@@ -109,7 +109,7 @@ export function MobileHomePage() {
           <span className="font-semibold text-xs text-[#f0f6fc] uppercase tracking-wider">
             Top Developers
           </span>
-          <button onClick={() => onNav('explore')} className="text-xs text-[#2f81f7]">
+          <button onClick={() => navigate('/explore')} className="text-xs text-[#2f81f7]">
             See all →
           </button>
         </div>

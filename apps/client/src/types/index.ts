@@ -64,12 +64,15 @@ export interface LanguageBreakdown {
   bytes?: number;
 }
 
-export interface SavedCollection {
-  id: string;
-  name: string;
-  description: string;
-  itemCount: number;
-  updatedAt: string;
+export interface GitHubEventPayload {
+  ref?: string;
+  ref_type?: string;
+  action?: string;
+  commits?: Array<{ sha?: string; message?: string }>;
+  release?: { tag_name?: string };
+  issue?: { number?: number; title?: string };
+  pull_request?: { number?: number; title?: string };
+  [key: string]: unknown;
 }
 
 // Developer Profile types
@@ -119,7 +122,7 @@ export interface DeveloperProfileActivityItem {
   repo: string | null;
   repoUrl: string | null;
   createdAt: string;
-  payload: any;
+  payload?: GitHubEventPayload;
 }
 
 export interface DeveloperProfileRepository {
@@ -200,7 +203,7 @@ export interface DashboardActivityItem {
   repo: string | null;
   repoUrl: string | null;
   createdAt: string;
-  payload: any;
+  payload?: GitHubEventPayload;
 }
 
 export interface DashboardRepository {
