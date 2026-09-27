@@ -5,8 +5,18 @@
 
 import { API_BASE } from '../lib/apiBase';
 
-export const searchRepositories = async (query: string) => {
-  const resp = await fetch(`${API_BASE}/api/github/search/repositories?q=${encodeURIComponent(query)}`, {
+export const searchRepositories = async (
+  query: string,
+  page: number = 1,
+  per_page: number = 20,
+  sort?: string,
+) => {
+  const url = new URL(`${API_BASE}/api/github/search/repositories`);
+  url.searchParams.set('q', query);
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('per_page', String(per_page));
+  if (sort) url.searchParams.set('sort', sort);
+  const resp = await fetch(url.toString(), {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error('Failed to search repositories');
@@ -14,8 +24,16 @@ export const searchRepositories = async (query: string) => {
   return data.items as any[]; // GitHub returns { items: [...] }
 };
 
-export const searchUsers = async (query: string) => {
-  const resp = await fetch(`${API_BASE}/api/github/search/users?q=${encodeURIComponent(query)}`, {
+export const searchUsers = async (
+  query: string,
+  page: number = 1,
+  per_page: number = 20,
+) => {
+  const url = new URL(`${API_BASE}/api/github/search/users`);
+  url.searchParams.set('q', query);
+  url.searchParams.set('page', String(page));
+  url.searchParams.set('per_page', String(per_page));
+  const resp = await fetch(url.toString(), {
     credentials: 'include',
   });
   if (!resp.ok) throw new Error('Failed to search users');

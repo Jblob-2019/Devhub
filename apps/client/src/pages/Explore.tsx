@@ -30,10 +30,33 @@ export function ExplorePage() {
       setDevResults([]);
       return;
     }
+    // Build query with language filter if set
+    let fullQuery = query;
+    if (filters.lang) {
+      fullQuery += ` language:${filters.lang}`;
+    }
+    // Determine sort parameter for repository search
+    let sortParam: string | undefined;
+    if (tab === 'Repositories') {
+      switch (sort) {
+        case 'Stars':
+          sortParam = 'stars';
+          break;
+        case 'Forks':
+          sortParam = 'forks';
+          break;
+        case 'Updated':
+          sortParam = 'updated';
+          break;
+        default:
+          sortParam = undefined;
+      }
+    }
+
     const fetchData = async () => {
       try {
-        const repos = await searchRepositories(query);
-        const devs = await searchUsers(query);
+        const repos = await searchRepositories(fullQuery, page, 20, sortParam);
+        const devs = await searchUsers(fullQuery, page, 20);
         // Map GitHub repo shape to our Repository type
         const mappedRepos = repos.map((r:any): Repository => ({
           id: r.id?.toString() ?? '',
