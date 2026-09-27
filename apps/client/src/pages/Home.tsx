@@ -255,15 +255,6 @@ export function HomePage() {
         {/* Right Sidebar Column */}
         <div className="space-y-5">
           {/* Weekly Commit Activity Graph */}
-          <SidebarSection title="Commit Velocity">
-            <div className="space-y-2">
-              <VectorChart height={84} type="area" label="commits / week" />
-              <div className="flex justify-between text-[11px] font-mono text-[#6e7681] pt-1">
-                <span>Total: 1,482 commits</span>
-                <span className="text-[#3fb950] font-semibold">↑ 18.4% vs last mo</span>
-              </div>
-            </div>
-          </SidebarSection>
 
           {/* Top Ecosystem Languages */}
           <SidebarSection title="Language Share">

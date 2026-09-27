@@ -352,7 +352,7 @@ function RepositoryGrid({ repositories }: { repositories: DeveloperProfileData['
         {repositories.map((repo) => (
           <Link
             key={repo.id}
-            to={`/repository?owner=${repo.fullName.split('/')[0]}&repo=${repo.fullName.split('/')[1]}`}
+            to={`/repository?owner=${encodeURIComponent(repo.fullName.split('/')[0])}&repo=${encodeURIComponent(repo.fullName.split('/')[1])}`}
             className="bg-[#161b22] rounded-xl border border-[#30363d] p-4 hover:border-[#484f58] transition-colors"
           >
             <div className="flex items-start justify-between gap-2 mb-2">

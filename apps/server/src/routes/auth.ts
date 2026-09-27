@@ -6,7 +6,7 @@ import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGith
 
 const router = Router();
 
-// --- Validation Schemas ---
+<!-- Validation Schemas -->
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
   email: z.string().email('Invalid email format'),
@@ -21,7 +21,7 @@ const loginSchema = z.object({
 type RegisterInput = z.infer<typeof registerSchema>;
 type LoginInput = z.infer<typeof loginSchema>;
 
-// Properly typed validation middleware
+<!-- Properly typed validation middleware -->
 const validateBody = <T extends z.ZodSchema>(schema: T) => (
   req: Request,
   res: Response,
@@ -72,7 +72,18 @@ const getOauthCookieOptions = () => {
   };
 };
 
-// ---------- Email registration ----------
+const getOauthStateCookieOptions = () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = isProd ? ('none' as const) : ('lax' as const);
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite,
+    path: '/',
+    maxAge: 10 * 60 * 1000,
+  };
+};
+
 router.post('/register', validateBody(registerSchema), async (req, res) => {
   const { name, email, password } = (req as any).validatedBody as RegisterInput;
   const existing = await findUserByEmail(email);
@@ -94,7 +105,6 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
     });
 });
 
-// ---------- Email login ----------
 router.post('/login', validateBody(loginSchema), async (req, res) => {
   const { email, password } = (req as any).validatedBody as LoginInput;
   const user = await findUserByEmail(email);
@@ -117,14 +127,12 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
     });
 });
 
-// ---------- Logout ----------
 router.post('/logout', (req, res) => {
   res.clearCookie('session', getCookieOptions());
   res.clearCookie('oauth_state', getOauthCookieOptions());
   res.json({ message: 'Logged out' });
 });
 
-// ---------- Current user ----------
 router.get('/me', async (req, res) => {
   const token = req.cookies?.session;
   if (!token) return res.status(401).json({ error: 'Unauthenticated' });
@@ -150,9 +158,9 @@ router.get('/github', (req, res) => {
     return res.status(500).json({ error: 'GitHub OAuth is not configured' });
   }
   const state = crypto.randomUUID();
-  res.cookie('oauth_state', state, getOauthCookieOptions());
+  res.cookie('oauth_state', state, getOauthStateCookieOptions());
   const params = new URLSearchParams({
-    client_id: clientId,
+    client_id: process.env.GITHUB_CLIENT_ID,
     redirect_uri: getGithubCallbackUrl(),
     scope: 'read:user user:email',
     state,
@@ -161,7 +169,7 @@ router.get('/github', (req, res) => {
 });
 
 // ---------- GitHub OAuth callback ----------
-router.get('/github/callback', async (req, res) => {
+router.get('/auth/callback', async (req, res) => {
   const log = (label: string, meta?: Record<string, unknown>) => {
     const isProd = process.env.NODE_ENV === 'production';
     const base = { label, ts: new Date().toISOString(), env: isProd ? 'production' : 'development' };
@@ -179,11 +187,11 @@ router.get('/github/callback', async (req, res) => {
 
     if (!code || !state || !storedState || state !== storedState) {
       log('oauth:invalid_state', { state, storedState });
-      return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
+      return res.redirect(`${getFrontendUrl()}/auth/callback?error=invalid_state`);
     }
 
     // Clear the state cookie
-    res.clearCookie('oauth_state', getOauthCookieOptions());
+    res.clearCookie('oauth_state', getOauthStateCookieOptions());
 
     // Exchange code for access token
     const tokenResp = await fetch('https://github.com/login/oauth/access_token', {
@@ -203,7 +211,7 @@ router.get('/github/callback', async (req, res) => {
     const tokenData = await tokenResp.json();
     if (!tokenResp.ok || tokenData.error) {
       log('oauth:token_error', { error: tokenData.error, error_description: tokenData.error_description });
-      return res.redirect(`${getFrontendUrl()}/login?error=token_exchange_failed`);
+      return res.redirect(`${getFrontendUrl()}/auth/callback?error=token_exchange_failed`);
     }
 
     const githubAccessToken = tokenData.access_token;
@@ -218,7 +226,7 @@ router.get('/github/callback', async (req, res) => {
 
     if (!userResp.ok) {
       log('oauth:user_fetch_failed', { status: userResp.status });
-      return res.redirect(`${getFrontendUrl()}/login?error=user_fetch_failed`);
+      return res.redirect(`${getFrontendUrl()}/auth/callback?error=user_fetch_failed`);
     }
 
     const githubUser = await userResp.json();
@@ -241,7 +249,7 @@ router.get('/github/callback', async (req, res) => {
 
     if (!githubEmail) {
       log('oauth:no_email', { githubId: githubUser.id });
-      return res.redirect(`${getFrontendUrl()}/login?error=no_email`);
+      return res.redirect(`${getFrontendUrl()}/auth/callback?error=no_email`);
     }
 
     // Find or create user
@@ -274,12 +282,10 @@ router.get('/github/callback', async (req, res) => {
     const token = signJwt(user);
     res
       .cookie('session', token, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 })
-      .redirect(getFrontendUrl());
+      .redirect(`${getFrontendUrl()}/auth/callback`);
 
   } catch (err: any) {
     log('oauth:exception', { error: err?.message ?? String(err) });
-    return res.redirect(`${getFrontendUrl()}/login?error=server_error`);
+    return res.redirect(`${getFrontendUrl()}/auth/callback?error=server_error`);
   }
 });
-
-export default router;

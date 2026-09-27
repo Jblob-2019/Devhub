@@ -164,7 +164,7 @@ function AuthCallbackPageWithError() {
             <p className="text-[#8b949e] mb-6">{error}</p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => window.location.href = `${import.meta.env.VITE_API_BASE || ''}/api/auth/github`}
+                onClick={() => window.location.href = `${import.meta.env.VITE_API_URL || ''}/api/auth/github`}
                 className="dev-btn dev-btn-primary"
               >
                 Retry with GitHub
