@@ -135,11 +135,20 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', async (req, res) => {
   const token = req.cookies?.session;
-  if (!token) return res.status(401).json({ error: 'Unauthenticated' });
+  const cookieOptions = getCookieOptions();
+  console.debug('[AUTH] /api/auth/me', {
+    hasToken: !!token,
+    tokenPreview: token ? `${token.slice(0, 20)}...` : null,
+    cookieOptions,
+    nodeEnv: process.env.NODE_ENV,
+    origin: req.headers.origin,
+    cookieHeader: req.headers.cookie,
+  });
+  if (!token) return res.status(401).json({ error: 'Unauthenticated', debug: { hasToken: false } });
   const payload = verifyJwt(token as string);
-  if (!payload) return res.status(401).json({ error: 'Invalid token' });
+  if (!payload) return res.status(401).json({ error: 'Invalid token', debug: { hasToken: true, validJwt: false } });
   const user = await findUserById(payload.sub);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return res.status(404).json({ error: 'User not found', debug: { hasToken: true, validJwt: true, userFound: false } });
   res.json({
     id: user.id,
     email: user.email,
@@ -280,8 +289,14 @@ router.get('/github/callback', async (req, res) => {
     }
 
     const token = signJwt(user);
+    const sessionCookieOptions = { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 };
+    console.debug('[AUTH] Setting session cookie', {
+      cookieOptions: sessionCookieOptions,
+      nodeEnv: process.env.NODE_ENV,
+      frontendUrl: getFrontendUrl(),
+    });
     res
-      .cookie('session', token, { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 })
+      .cookie('session', token, sessionCookieOptions)
       .redirect(`${getFrontendUrl()}/auth/callback`);
 
   } catch (err: any) {
