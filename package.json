@@ -1,5 +1,5 @@
 {
-  "name": "my-app",
+  "name": "devhub",
   "private": true,
   "workspaces": [
     "apps/*",
