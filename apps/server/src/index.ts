@@ -10,6 +10,7 @@ import authRouter from './routes/auth.js';
 import { parseCookies } from './middleware/auth.js';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = parseInt(process.env.PORT ?? '4000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
