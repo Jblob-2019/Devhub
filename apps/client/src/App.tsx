@@ -13,6 +13,7 @@ import { DashboardPage } from './pages/Dashboard';
 import { LoginPage, RegisterPage } from './pages/Auth';
 import { MobileBottomNav } from './pages/MobileHome';
 import { githubLogin } from './services/authService';
+import { API_BASE } from './lib/apiBase';
 
 // Mobile layout wrapper component
 function MobileLayout({ children }: { children: React.ReactNode }) {
@@ -105,17 +106,59 @@ function AuthCallbackPage() {
 
     const initAuth = async () => {
       try {
-        const user = await refresh();
-        if (user) {
-          console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
-          navigate('/home', { replace: true });
-        } else {
-          console.debug('[AUTH] OAuth callback: /api/auth/me returned 401');
-          setError('GitHub sign-in completed, but DevHub could not restore your session. Please try again.');
+        const params = new URLSearchParams(window.location.search);
+        const otp = params.get('token');
+        const errParam = params.get('error');
+
+        if (errParam) {
+          const msgs: Record<string, string> = {
+            invalid_state: 'OAuth state mismatch. Please try again.',
+            token_exchange_failed: 'GitHub token exchange failed. Please try again.',
+            no_email: 'Your GitHub account has no verified email. Please add one and retry.',
+            account_conflict: 'This GitHub account is already linked to a different DevHub account.',
+            server_error: 'A server error occurred. Please try again.',
+          };
+          setError(msgs[errParam] ?? 'GitHub sign-in failed. Please try again.');
+          return;
         }
-      } catch (err: any) {
-        console.error('[AUTH] OAuth callback error:', err);
-        setError(err?.message || 'Authentication failed. Please try again.');
+
+        if (otp) {
+          // Exchange the one-time token for a session cookie via credentialed XHR.
+          // The browser will reliably store the Set-Cookie header on this fetch response.
+          console.debug('[AUTH] /auth/callback: exchanging OTP for session', { apiBase: API_BASE });
+          const sessionResp = await fetch(`${API_BASE}/api/auth/session?token=${encodeURIComponent(otp)}`, {
+            credentials: 'include',
+          });
+          console.debug('[AUTH] /api/auth/session status:', sessionResp.status, 'ok:', sessionResp.ok);
+
+          if (sessionResp.ok) {
+            // Session cookie is now set. Call refresh() to populate AuthContext.
+            const user = await refresh();
+            if (user) {
+              console.debug('[AUTH] OAuth callback: user restored, navigating to /home');
+              navigate('/home', { replace: true });
+            } else {
+              console.debug('[AUTH] OAuth callback: /api/auth/me returned null after session set');
+              setError('GitHub sign-in completed, but DevHub could not restore your session. Please try again.');
+            }
+          } else {
+            const body = await sessionResp.json().catch(() => ({})) as { error?: string };
+            console.debug('[AUTH] OAuth callback: session exchange failed', body);
+            setError('GitHub sign-in completed, but session could not be established. Please try again.');
+          }
+        } else {
+          // No OTP — direct navigation to /auth/callback (e.g. refresh). Try refresh() anyway.
+          const user = await refresh();
+          if (user) {
+            navigate('/home', { replace: true });
+          } else {
+            setError('No active session. Please sign in again.');
+          }
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[AUTH] OAuth callback error:', msg);
+        setError('Authentication failed. Please try again.');
       }
     };
     initAuth();

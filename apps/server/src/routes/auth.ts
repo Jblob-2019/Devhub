@@ -7,6 +7,26 @@ import { encryptToken } from '../services/crypto.js';
 
 const router = Router();
 
+// ── One-time session exchange tokens ────────────────────────────────────────
+// Browsers do not reliably persist Set-Cookie headers that arrive on cross-origin
+// 302 redirects. Instead the OAuth callback creates a short-lived (60 s) single-use
+// OTP, redirects the browser to the frontend with ?token=<otp>, and the frontend
+// calls GET /api/auth/session?token=<otp> with credentials:'include'. That XHR
+// response sets the cookie cleanly so the browser stores it.
+interface OtpEntry { jwt: string; expiresAt: number; }
+const otpStore = new Map<string, OtpEntry>();
+
+// Purge expired entries lazily on each new creation (no background timer needed).
+const createOtp = (jwt: string): string => {
+  const now = Date.now();
+  for (const [k, v] of otpStore) {
+    if (v.expiresAt <= now) otpStore.delete(k);
+  }
+  const otp = crypto.randomUUID();
+  otpStore.set(otp, { jwt, expiresAt: now + 60_000 });
+  return otp;
+};
+
 // Validation Schemas
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
@@ -123,20 +143,23 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', async (req, res) => {
   const token = req.cookies?.session;
-  const cookieOptions = getCookieOptions();
-  console.debug('[AUTH] /api/auth/me', {
-    hasToken: !!token,
-    tokenPreview: token ? `${(token as string).slice(0, 20)}...` : null,
-    cookieOptions,
-    nodeEnv: process.env.NODE_ENV,
-    origin: req.headers.origin,
-    cookieHeader: req.headers.cookie,
-  });
-  if (!token) return res.status(401).json({ error: 'Unauthenticated', debug: { hasToken: false } });
+  const cookieHeader = req.headers.cookie;
+  // Safe diagnostics — never log the actual token/cookie values.
+  console.log(JSON.stringify({
+    label: 'me:request',
+    ts: new Date().toISOString(),
+    origin: req.headers.origin ?? null,
+    hasCookieHeader: !!cookieHeader,
+    cookieNames: cookieHeader
+      ? cookieHeader.split(';').map(c => c.split('=')[0].trim())
+      : [],
+    hasSessionToken: !!token,
+  }));
+  if (!token) return res.status(401).json({ error: 'Unauthenticated' });
   const payload = verifyJwt(token as string);
-  if (!payload) return res.status(401).json({ error: 'Invalid token', debug: { hasToken: true, validJwt: false } });
+  if (!payload) return res.status(401).json({ error: 'Invalid token' });
   const user = await findUserById(payload.sub);
-  if (!user) return res.status(404).json({ error: 'User not found', debug: { hasToken: true, validJwt: true, userFound: false } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({
     id: user.id,
     email: user.email,
@@ -147,6 +170,7 @@ router.get('/me', async (req, res) => {
     github_id: user.github_id,
   });
 });
+
 
 // ---------- GitHub OAuth start ----------
 router.get('/github', (req, res) => {
@@ -312,22 +336,83 @@ router.get('/github/callback', async (req, res) => {
     }
     // ── End account resolution ───────────────────────────────────────────────
 
-    const token = signJwt(user);
-    const sessionCookieOptions = { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 };
-    console.debug('[AUTH] Setting session cookie', {
-      cookieOptions: sessionCookieOptions,
-      nodeEnv: process.env.NODE_ENV,
-      frontendUrl: getFrontendUrl(),
-    });
-    res
-      .cookie('session', token, sessionCookieOptions)
-      .redirect(`${getFrontendUrl()}/auth/callback`);
+    const jwt = signJwt(user);
+    const otp = createOtp(jwt);
+    log('oauth:otp_issued', { userId: user.id, otpPrefix: otp.slice(0, 8) });
+    // Redirect without setting cookie — cookie is set by the /session endpoint.
+    res.redirect(`${getFrontendUrl()}/auth/callback?token=${otp}`);
 
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     log('oauth:exception', { error: errorMsg });
     return res.redirect(`${getFrontendUrl()}/auth/callback?error=server_error`);
   }
+});
+
+// ── GET /session — exchange OTP for a session cookie ────────────────────────
+// Called by the frontend /auth/callback page with credentials:'include'.
+// Sets the httpOnly session cookie on an XHR response (reliable cross-origin).
+router.get('/session', async (req, res) => {
+  const otp = (req.query.token as string | undefined)?.trim();
+  if (!otp) {
+    console.log(JSON.stringify({ label: 'session:missing_token', ts: new Date().toISOString() }));
+    return res.status(400).json({ error: 'missing_token' });
+  }
+
+  const entry = otpStore.get(otp);
+  if (!entry) {
+    console.log(JSON.stringify({ label: 'session:invalid_token', ts: new Date().toISOString() }));
+    return res.status(401).json({ error: 'invalid_or_expired_token' });
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    otpStore.delete(otp);
+    console.log(JSON.stringify({ label: 'session:expired_token', ts: new Date().toISOString() }));
+    return res.status(401).json({ error: 'invalid_or_expired_token' });
+  }
+
+  // Single-use — delete immediately.
+  otpStore.delete(otp);
+
+  const payload = verifyJwt(entry.jwt);
+  if (!payload) {
+    console.log(JSON.stringify({ label: 'session:invalid_jwt', ts: new Date().toISOString() }));
+    return res.status(401).json({ error: 'invalid_jwt' });
+  }
+
+  const user = await findUserById(payload.sub);
+  if (!user) {
+    console.log(JSON.stringify({ label: 'session:user_not_found', ts: new Date().toISOString() }));
+    return res.status(404).json({ error: 'user_not_found' });
+  }
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? ('none' as const) : ('lax' as const),
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+
+  console.log(JSON.stringify({
+    label: 'session:cookie_set',
+    ts: new Date().toISOString(),
+    userId: user.id,
+    cookieOptions,
+  }));
+
+  res
+    .cookie('session', entry.jwt, cookieOptions)
+    .json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      username: user.username,
+      avatar_url: user.avatar_url,
+      github_username: user.github_username,
+      github_id: user.github_id,
+    });
 });
 
 export default router;
