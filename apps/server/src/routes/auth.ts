@@ -6,7 +6,7 @@ import { createUser, findUserByEmail, findUserByGithubId, findUserById, linkGith
 
 const router = Router();
 
-<!-- Validation Schemas -->
+// Validation Schemas
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
   email: z.string().email('Invalid email format'),
@@ -21,7 +21,7 @@ const loginSchema = z.object({
 type RegisterInput = z.infer<typeof registerSchema>;
 type LoginInput = z.infer<typeof loginSchema>;
 
-<!-- Properly typed validation middleware -->
+// Properly typed validation middleware
 const validateBody = <T extends z.ZodSchema>(schema: T) => (
   req: Request,
   res: Response,
