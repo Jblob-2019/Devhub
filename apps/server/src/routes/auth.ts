@@ -266,32 +266,51 @@ router.get('/github/callback', async (req, res) => {
     // Encrypt the GitHub OAuth access token before saving to database
     const encryptedToken = encryptToken(githubAccessToken);
 
-    // Find or create user
-    let user = await findUserByEmail(githubEmail);
-    if (!user) {
-      user = await findUserByGithubId(String(githubUser.id));
-    }
+    const githubIdStr = String(githubUser.id);
+
+    // ── Account resolution (github_id is primary identity) ──────────────────
+    // A. Find existing user by github_id — the authoritative lookup.
+    let user = await findUserByGithubId(githubIdStr);
+    log('oauth:lookup_by_github_id', { githubId: githubIdStr, found: !!user });
 
     if (user) {
-      // Link GitHub account if not already linked
-      if (!user.github_id) {
-        user = await linkGithubToUser(user.id, String(githubUser.id), githubUser.login, githubUser.avatar_url, encryptedToken);
-      } else {
-        // Update encrypted access token
-        user = await updateGithubAccessToken(user.id, encryptedToken);
-      }
+      // A-hit: recognised GitHub account → just refresh the stored token.
+      log('oauth:existing_github_user', { userId: user.id });
+      user = await updateGithubAccessToken(user.id, encryptedToken);
     } else {
-      // Create new user
-      user = await createUser({
-        email: githubEmail,
-        name: githubUser.name ?? githubUser.login,
-        username: githubUser.login,
-        avatar_url: githubUser.avatar_url,
-        github_id: String(githubUser.id),
-        github_username: githubUser.login,
-        github_access_token: encryptedToken,
-      });
+      // B. No github_id match → try email.
+      const emailUser = await findUserByEmail(githubEmail);
+      log('oauth:lookup_by_email', { email: githubEmail, found: !!emailUser });
+
+      if (emailUser) {
+        if (emailUser.github_id) {
+          // C. Email user already linked to a *different* GitHub account → conflict.
+          log('oauth:github_id_conflict', {
+            userId: emailUser.id,
+            existingGithubId: emailUser.github_id,
+            incomingGithubId: githubIdStr,
+          });
+          return res.redirect(`${getFrontendUrl()}/auth/callback?error=account_conflict`);
+        }
+
+        // D. Email user exists but has no GitHub link → safe to link.
+        log('oauth:linking_github_to_email_user', { userId: emailUser.id, githubId: githubIdStr });
+        user = await linkGithubToUser(emailUser.id, githubIdStr, githubUser.login, githubUser.avatar_url, encryptedToken);
+      } else {
+        // E. No existing user at all → create a brand-new account.
+        log('oauth:creating_new_user', { githubId: githubIdStr, email: githubEmail });
+        user = await createUser({
+          email: githubEmail,
+          name: githubUser.name ?? githubUser.login,
+          username: githubUser.login,
+          avatar_url: githubUser.avatar_url,
+          github_id: githubIdStr,
+          github_username: githubUser.login,
+          github_access_token: encryptedToken,
+        });
+      }
     }
+    // ── End account resolution ───────────────────────────────────────────────
 
     const token = signJwt(user);
     const sessionCookieOptions = { ...getCookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 };
