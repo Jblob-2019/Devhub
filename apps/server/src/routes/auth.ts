@@ -160,7 +160,7 @@ router.get('/github', (req, res) => {
   const state = crypto.randomUUID();
   res.cookie('oauth_state', state, getOauthStateCookieOptions());
   const params = new URLSearchParams({
-    client_id: process.env.GITHUB_CLIENT_ID,
+    client_id: clientId,
     redirect_uri: getGithubCallbackUrl(),
     scope: 'read:user user:email',
     state,
@@ -289,3 +289,5 @@ router.get('/auth/callback', async (req, res) => {
     return res.redirect(`${getFrontendUrl()}/auth/callback?error=server_error`);
   }
 });
+
+export default router;
