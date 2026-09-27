@@ -169,7 +169,7 @@ router.get('/github', (req, res) => {
 });
 
 // ---------- GitHub OAuth callback ----------
-router.get('/auth/callback', async (req, res) => {
+router.get('/github/callback', async (req, res) => {
   const log = (label: string, meta?: Record<string, unknown>) => {
     const isProd = process.env.NODE_ENV === 'production';
     const base = { label, ts: new Date().toISOString(), env: isProd ? 'production' : 'development' };
