@@ -23,6 +23,7 @@ app.use(helmet({
 // --- CORS Configuration ---
 const allowedOrigins = [
   process.env.FRONTEND_URL,
+  'https://client-jet-two-14.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',
